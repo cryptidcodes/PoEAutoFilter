@@ -14,6 +14,7 @@ import (
 )
 
 // Example custom override block (edit as needed)
+
 const customOverrideBlock string = `
 #= Custom Override Block Start =
 Hide
@@ -215,9 +216,12 @@ func writeFilterBlocks(valueMap map[string]map[string]float64, sub1cMult float64
 	var buf bytes.Buffer
 	for i := 0; i < len(typeSlice); i++ {
 		for name, value := range valueMap[typeSlice[i]] {
-			if strings.Contains(name, "Muttering") || strings.Contains(name, "Whispering") || strings.Contains(name, "Weeping") || strings.Contains(name, "Wailing") {
-				continue
-			}
+
+			// Optional logic to skip certain items entirely
+			// if strings.Contains(name, "Muttering") || strings.Contains(name, "Whispering") || strings.Contains(name, "Weeping") || strings.Contains(name, "Wailing") {
+			// 	continue
+			// }
+
 			buf.WriteString("\n## Half Div Tier ##\n")
 			buf.WriteString("Show\n")
 			buf.WriteString(fmt.Sprintf("BaseType == \"%s\"\n", name))
@@ -464,6 +468,8 @@ func main() {
 		valueMap["Essences"] = essenceValues
 
 		filter := writeFilterBlocks(valueMap, sub1cMult)
+		// OPTIONAL: Add customOverrideBlock as arg before the filter arg if you want to include it
+		// TODO: Transition customOverrideBlock to a config file or GUI setting
 		err = updateFilterFile(filePath, customOverrideBlock, filter)
 		if err != nil {
 			fmt.Println("Error updating filter file:", err)
