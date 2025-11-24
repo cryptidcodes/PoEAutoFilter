@@ -12,17 +12,15 @@ In order to setup the program you will need to download the .exe and setup your 
 
 1. **FilePath**
 
-Here you will need to locate your filter file folder. You can do this ingame by navigating to the game options tab and clicking the folder button in the item filter line. Once the folder is opened, you can click in the url bar at the top to get the file path. Make sure to include the file name at the end. For instance, my config.txt FilePath= line would look like this:
+Here you will need to locate your filter file folder. You can do this ingame by navigating to the game options tab and clicking the folder button in the item filter line. Once the folder is opened, you can click in the url bar at the top to get the file path. Make sure to include the file name at the end. For instance, my config.txt FilePath line would look like this:
 
-**FilePath**
-C:\Users\Username\Documents\My Games\Path of Exile\AutoFilter.filter
+`C:\Users\Username\Documents\My Games\Path of Exile\AutoFilter.filter`
 
 2. **League** 
 
 Here you will need to set the current League you are playing in whose economy the program will base its valuations on. For instance, this program was developed during Mercenaries of Trarthus league, so the filter line would look like this:
 
-**League**
-Mercenaries
+`Mercenaries`
 
 However, some leagues have odd naming conventions, so in case it isn't obvious what the name of the trade league will be, you can find this by navigating to the [trade website](https://www.pathofexile.com/trade) and find the league you want to use in the dropdown menu next to the search bar. Once you select it, you should see the name of the league in the URL. Mine says "https://www.pathofexile.com/trade/search/Mercenaries", so Mercenaries is the name i need to use for this league.
 
@@ -30,8 +28,7 @@ However, some leagues have odd naming conventions, so in case it isn't obvious w
 
 For this line, you will set the floor of what value a stack of items would need in order to not be hidden. You can set any value between 0 and 1 here. For now, the floor threshold cannot go above 1 so Chaos orbs will never be hidden. Example:
 
-**Sub1cMult**
-0.5
+`0.5`
 
 4. **Override**
 
