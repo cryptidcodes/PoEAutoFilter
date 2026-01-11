@@ -1,89 +1,73 @@
 # PoEAutoFilter
 
-This program is designed to automatically print Path Of Exile filter rules based on a snapshot of the economy. While running, the program automatically updates your filter hourly to the *current* economy. This program cannot manually push your client to update to the current filter file . It will load the current filter file when you open the client or when manually clicking the reload file button in the game settings tab.
+PoEAutoFilter is a powerful, GUI-based tool designed to automatically maintain and update your Path of Exile item filters based on real-time market data from [poe.ninja](https://poe.ninja). It calculates the value of item stacks (Currency, Fragments, Scarabs, Essences, and Fossils) and applies custom styling based on their current Chaos, Exalted, or Divine equivalent value.
 
-Currently, the program fetches data from poe.ninja while running, gets the current Chaos, Exalted, and Divine values, and calculates how big of a stack of each supported item would need to drop in order to meet certain thresholds. The program is bracketed into value tiers of: Sub 1 Chaos(this tier is modulated by a multiplier value set in the config. You can choose to scale the bottom floor of the filter from .1 to 1 chaos to set your minimum value threshold for what should show), 1 Chaos, 5 Chaos, 1 Exalted, and 0.5 Divine. For instance, with the economy at time of writing, Glassblower Baubles are valued roughly 4 to 1 Chaos. So in order to trigger the 1 Chaos value tier of the filter, a stack of Baubles would need at least 4. On my filter, i have the Sub1cMult config setting at 1, so i will never show a stack of Baubles less than 4, but if your mult is set to 0.5 for instance, you would see stacks of 2 Baubles.
+## Key Features
 
-The filter **ONLY** supports select item types, currently these are Currencies, Fragments, Scarabs, Essences, and Fossils. You will need a base filter to manipulate, with rules for all other items. I suggest using [filterblade](https://www.filterblade.xyz) to generate one.
+- **Real-Time Market Integration**: Automatically fetches the latest prices from poe.ninja.
+- **Dynamic Stack Valuation**: Calculates if a stack of items meets your value thresholds (e.g., "Is this 10x Glassblower's Bauble stack worth at least 1 Chaos?").
+- **Full GUI Configuration**: Easily manage league, file paths, styles, and value tiers through a clean interface.
+- **Custom Style Library**: Define rich visual styles including font size, text/border/background colors, alert sounds, beam effects, and minimap icons.
+- **Flexible Value Tiers**: Map specific value thresholds to your custom styles.
+- **Continuous Updates**: Can run in the background and update your filter file hourly to keep up with a volatile economy.
+- **Template-Based Generation**: Appends its rules to your own base filter, letting you keep your existing rules for rares, maps, and other items.
 
-## SETUP
+## Supported Item Types
 
-In order to setup the program you will need to download the .exe and setup your config file. In the future, i would like to implement a GUI to remove the need to manually edit a text file. For now, setup the config file as such:
+Currently, the program supports automated valuation for:
+- Currencies
+- Fragments
+- Scarabs
+- Essences
+- Fossils
 
-1. **FilePath**
+## First-Time Setup
 
-Here you will need to locate your filter file folder. You can do this ingame by navigating to the game options tab and clicking the folder button in the item filter line. Once the folder is opened, you can click in the url bar at the top to get the file path. Make sure to include the file name at the end. For instance, my config.txt FilePath line would look like this:
+1. **Download & Launch**: Run the `PoEAutoFilter` executable.
+2. **Set Your League**: Enter the current league name (e.g., `Mercenaries` or `Standard`) in the **General** tab.
+3. **Select Files**:
+    - **Base Filter File**: Select a "template" filter (e.g., one generated from [FilterBlade](https://www.filterblade.xyz)). This file will remain untouched as a source.
+    - **Output Filter File**: Select the actual `.filter` file in your Path of Exile documents folder that the game uses. You can create a new `.filter` file that the program will write to. Name it something like `AutoFilter.filter`.
+4. **Configure Styles & Tiers**:
+    - Go to the **Style Library** tab to define how items should look.
+    - Go to the **Value Tiers** tab to set your thresholds (e.g., "Show items worth > 5 Chaos using the 'Mid Tier' style").
+5. **Start**: Click **Save & Start AutoFilter** in the General tab. The program will start updating your filter file hourly. You must reload the filter in-game to see the changes.
 
-`C:\Users\Username\Documents\My Games\Path of Exile\AutoFilter.filter`
+## User Walkthrough
 
-2. **League** 
+### General Tab
+- **League**: Ensure this matches the league you are playing. If you aren't sure, open the trade site and check the URL.
+- **Custom Rules Override**: Directly paste any raw filter blocks you want to *always* appear at the top of the generated filter (useful for custom rules not covered by the auto-valuation).
+- **Activity Log**: Watch this area to see the bot fetching prices and updating your file.
 
-Here you will need to set the current League you are playing in whose economy the program will base its valuations on. For instance, this program was developed during Mercenaries of Trarthus league, so the filter line would look like this:
+### Style Library Tab
+- **Add New Style**: Creates a new style entry.
+- **Edit Style**: Opens a detailed editor where you can add "Actions" like:
+    - `SetTextColor`, `SetBackgroundColor`, `SetBorderColor` (includes a full Color Picker).
+    - `SetFontSize` (1-45).
+    - `PlayAlertSound` (ID 1-16 and Volume).
+    - `PlayEffect` (Beam color and duration).
+    - `MinimapIcon` (Size, Color, and Shape).
+- **Preview Rules**: See the raw Path of Exile filter code generated by your style.
 
-`Mercenaries`
+### Value Tiers Tab
+- **Name**: A label for your tier (e.g., "High Value").
+- **Val / Currency**: The threshold (e.g., `1.0` `Divine` or `5.0` `Chaos`).
+- **Style**: Choose a style from your Library to apply to items meeting this value.
+- The bot will evaluate item stacks and place them in the *highest* applicable tier.
 
-However, some leagues have odd naming conventions, so in case it isn't obvious what the name of the trade league will be, you can find this by navigating to the [trade website](https://www.pathofexile.com/trade) and find the league you want to use in the dropdown menu next to the search bar. Once you select it, you should see the name of the league in the URL. Mine says "https://www.pathofexile.com/trade/search/Mercenaries", so Mercenaries is the name i need to use for this league.
+## How It Works
 
-3. **Sub1cMult**
+PoEAutoFilter reads your **Base Filter File**, appends its generated rules (and your Custom Overrides), and writes the result to the **Output Filter File**. 
 
-For this line, you will set the floor of what value a stack of items would need in order to not be hidden. You can set any value between 0 and 1 here. For now, the floor threshold cannot go above 1 so Chaos orbs will never be hidden. Example:
+> [!IMPORTANT!]
+> The program updates the file on disk, but you must still **Reload** the filter in Path of Exile (usually via the 'Reload' button next to the filter name in Game settings) to see the changes in-game.
 
-`0.5`
+## Support & Contributions
 
-4. **Override**
+This project is in active development. Feel free to report issues or suggest features!
 
-This is a custom block you can set to override the rules that are automatically generated based on market prices. For instance, poe.ninja sometimes erroneously reports value data for currencies that have low trade activity. Things like scrolls, low tier essences, transmutes, etc will often be overvalued by poe.ninja and thus will show stacks as worth far more than what they actually are worth. For instance, at time of writing, my filter is showing 16x Transmutation Orb stack as a 1c value stack. However the actual market rate is about 200 Transmutes to 1 Chaos. To prevent these items from continously bogging down your filter, you can choose to exclude them with the override block. You need to use correct filter syntax to write this block which can be found [here](https://www.pathofexile.com/item-filter/about).
+## TODO
 
-5. **Styles**
-
-This is a section where you can dictate what the styles of each value tier should look like. Again you will need to use correct syntax when editing these blocks.
-
-6. **Running the program the first time**
-
-This program ***ONLY*** supports certain stackable currency items, so you are expected to provide a basic filter that will have rules for everything else such as rare items and such. You can create your own base file using [filterblade](https://www.filterblade.xyz) for instance. I named this file "AutoFilter.filter" and dragged it to the Path Of Exile filter folder, then set the FilePath= line to reflect the file's location. You can at any time, replace the file with a new base and just restart the program to add the current economy rules to the new base. Once you have a base filter and have set the config file correctly, you can run the .exe file. A command prompt window will open to show you the status. Each hour, the program will update and print the results. It should look something like this:
-
-`Hello, Path of Exile Auto Filter!`
-
-`Fetching item values for currency type: Currency`
-
-`Found 111 items`
-
-`Current Prices:`
-
-`Chaos Orb: 1.000000c`
-
-`Exalted Orb: 22.780000c`
-
-`Divine Orb: 133.790000c`
-
-`Fetching item values for type: Fragment`
-
-`Found 80 fragments`
-
-`Fetching item values for type: Scarab`
-
-`Found 109 scarabs`
-
-`Fetching item values for type: Fossil`
-
-`Found 25 fossils`
-
-`Fetching item values for type: Essence`
-
-`Found 105 essences`
-
-`Filter file updated successfully!`
-
-`Filter blocks written to file: C:\Users\Username\Documents\My Games\Path of Exile\AutoFilter.filter`
-
-`At Time: 2025-08-16 18:32:23.7810086 -0700 PDT m=+0.122500301`
-
-`Waiting 1 hour before next update...`
-
-You can leave this running in order to keep your file as up to date as possible, or run it once each time you get on to play, before starting the game. Closing the terminal window will stop the program, minimizing it will allow it to run in the background. Remember that you **MUST** remember to manually update the file ingame for it to stay updated if you are playing for a long period. Otherwise the game client will only read the file when you login to a character using that filter.
-
-## FUTURE FEATURES
-
-Some features i would like to implement in the future:
-
-1. A GUI to config the settings from, so the user does not need to manipulate a text file.
+- Implement caching of poe.ninja prices to reduce API calls.
+- Implement a way to automatically reload the filter in-game using the `/itemfilter` command.

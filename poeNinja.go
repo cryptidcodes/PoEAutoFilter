@@ -92,6 +92,8 @@ type ItemResponse struct {
 	Lines []Item `json:"lines"`
 }
 
+// fetchCurrencyValues retrieves currency data from poe.ninja for a specific league.
+// It returns a slice of Currency objects or an error if the request fails.
 func fetchCurrencyValues(league string, itemType string) ([]Currency, error) {
 	url := fmt.Sprintf("https://poe.ninja/api/data/currencyoverview?league=%s&type=%s", league, itemType)
 	resp, err := http.Get(url)
@@ -114,6 +116,8 @@ func fetchCurrencyValues(league string, itemType string) ([]Currency, error) {
 	return data.Lines, nil
 }
 
+// fetchItemValues retrieves item data (like fragments, scarabs, etc.) from poe.ninja for a specific league.
+// It returns a slice of Item objects or an error if the request fails.
 func fetchItemValues(league string, itemType string) ([]Item, error) {
 	url := fmt.Sprintf("https://poe.ninja/api/data/itemoverview?league=%s&type=%s", league, itemType)
 	resp, err := http.Get(url)

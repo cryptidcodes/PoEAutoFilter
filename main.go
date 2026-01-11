@@ -12,36 +12,38 @@ var DivinePrice float64 = 0.0         // Initial value for Divine price
 
 var typeSlice = []string{"Currency", "Fragments", "Scarabs", "Fossils", "Essences"}
 
-// This is the entry point for the Path of Exile Auto Filter application.
-
+// main is the entry point. It now launches the GUI.
 func main() {
+	ShowGUI()
+}
+
+// runBot contains the main automation logic, extracted from the old main function.
+// It runs indefinitely.
+func runBot(cfg Config, logger func(string)) {
 	for {
-		fmt.Println("Path of Exile Auto Filter")
-		// Read config at the start of each loop
-		fmt.Println("Reading config...")
-		cfg, err := ParseConfig("config.txt")
-		if err != nil {
-			fmt.Println("Error:", err)
-			time.Sleep(time.Second * 10)
-			return
-		}
-		fmt.Println("Configured successfully")
+		logger("Path of Exile Auto Filter\n")
+		// In CLI version we re-read config here. In GUI version, config is locked in.
+		// If dynamic updates are needed, we would re-load 'cfg' here.
+
+		logger("Configured successfully with League: " + cfg.League + "\n")
 
 		filePath := cfg.FilePath
-		sub1cMult := cfg.Sub1cMult
 
 		// Fetch item values for the specified league and currency item type
-		fmt.Printf("Fetching item values for currency type: Currency\n")
+		logger("Fetching item values for currency type: Currency\n")
 		items, err := fetchCurrencyValues(cfg.League, "Currency")
 		if err != nil {
-			fmt.Println("Error fetching items:", err)
+			logger(fmt.Sprintf("Error fetching items: %v\n", err))
+			logger("Retrying in 1 minute...\n")
+			time.Sleep(time.Minute)
 			continue
 		}
 		if len(items) == 0 {
-			fmt.Println("No items found.")
+			logger("No items found.\n")
+			time.Sleep(time.Minute)
 			continue
 		}
-		fmt.Printf("Found %d items\n", len(items))
+		logger(fmt.Sprintf("Found %d items\n", len(items)))
 		currencyValues := make(map[string]float64)
 		for i := 0; i < len(items); i++ {
 			currencyValues[items[i].CurrencyTypeName] = items[i].ChaosEquivalent
@@ -50,74 +52,74 @@ func main() {
 		ExaltedPrice = currencyValues["Exalted Orb"]
 		DivinePrice = currencyValues["Divine Orb"]
 
-		fmt.Printf("Current Prices:\n")
-		fmt.Printf("Chaos Orb: %fc\n", ChaosPrice)
-		fmt.Printf("Exalted Orb: %fc\n", ExaltedPrice)
-		fmt.Printf("Divine Orb: %fc\n", DivinePrice)
+		logger("Current Prices:\n")
+		logger(fmt.Sprintf("Chaos Orb: %fc\n", ChaosPrice))
+		logger(fmt.Sprintf("Exalted Orb: %fc\n", ExaltedPrice))
+		logger(fmt.Sprintf("Divine Orb: %fc\n", DivinePrice))
 
 		// Fragments
-		fmt.Printf("Fetching item values for type: Fragment\n")
+		logger("Fetching item values for type: Fragment\n")
 		fragments, err := fetchCurrencyValues(cfg.League, "Fragment")
 		if err != nil {
-			fmt.Println("Error fetching fragments:", err)
+			logger(fmt.Sprintf("Error fetching fragments: %v\n", err))
 			continue
 		}
 		if len(fragments) == 0 {
-			fmt.Println("No fragments found.")
+			logger("No fragments found.\n")
 			continue
 		}
-		fmt.Printf("Found %d fragments\n", len(fragments))
+		logger(fmt.Sprintf("Found %d fragments\n", len(fragments)))
 		fragmentValues := make(map[string]float64)
 		for i := 0; i < len(fragments); i++ {
 			fragmentValues[fragments[i].CurrencyTypeName] = fragments[i].ChaosEquivalent
 		}
 
 		// Scarabs
-		fmt.Printf("Fetching item values for type: Scarab\n")
+		logger("Fetching item values for type: Scarab\n")
 		scarabs, err := fetchItemValues(cfg.League, "Scarab")
 		if err != nil {
-			fmt.Println("Error fetching scarabs:", err)
+			logger(fmt.Sprintf("Error fetching scarabs: %v\n", err))
 			continue
 		}
 		if len(scarabs) == 0 {
-			fmt.Println("No scarabs found.")
+			logger("No scarabs found.\n")
 			continue
 		}
-		fmt.Printf("Found %d scarabs\n", len(scarabs))
+		logger(fmt.Sprintf("Found %d scarabs\n", len(scarabs)))
 		scarabValues := make(map[string]float64)
 		for i := 0; i < len(scarabs); i++ {
 			scarabValues[scarabs[i].Name] = scarabs[i].ChaosValue
 		}
 
 		// Fossils
-		fmt.Printf("Fetching item values for type: Fossil\n")
+		logger("Fetching item values for type: Fossil\n")
 		fossils, err := fetchItemValues(cfg.League, "Fossil")
 		if err != nil {
-			fmt.Println("Error fetching fossils:", err)
+			logger(fmt.Sprintf("Error fetching fossils: %v\n", err))
 			continue
 		}
 		if len(fossils) == 0 {
-			fmt.Println("No fossils found.")
+			logger("No fossils found.\n")
 			continue
 		}
-		fmt.Printf("Found %d fossils\n", len(fossils))
+		logger(fmt.Sprintf("Found %d fossils\n", len(fossils)))
 		fossilValues := make(map[string]float64)
 		for i := 0; i < len(fossils); i++ {
 			fossilValues[fossils[i].Name] = fossils[i].ChaosValue
 		}
 
 		// Essences
-		fmt.Printf("Fetching item values for type: Essence\n")
+		logger("Fetching item values for type: Essence\n")
 		essences, err := fetchItemValues(cfg.League, "Essence")
 		if err != nil {
-			fmt.Println("Error fetching essences:", err)
+			logger(fmt.Sprintf("Error fetching essences: %v\n", err))
 			continue
 		}
 		if len(essences) == 0 {
-			fmt.Println("No essences found.")
+			logger("No essences found.\n")
 			continue
 		}
-		fmt.Printf("Found %d essences\n", len(essences))
+		logger(fmt.Sprintf("Found %d essences\n", len(essences)))
 		essenceValues := make(map[string]float64)
 		for i := 0; i < len(essences); i++ {
 			essenceValues[essences[i].Name] = essences[i].ChaosValue
@@ -131,18 +133,18 @@ func main() {
 		valueMap["Fossils"] = fossilValues
 		valueMap["Essences"] = essenceValues
 
-		filter := writeFilterBlocks(cfg, valueMap, sub1cMult)
+		filter := writeFilterBlocks(cfg, valueMap)
 		// OPTIONAL: Add customOverrideBlock as arg before the filter arg if you want to include it
 		// TODO: Transition customOverrideBlock to a config file or GUI setting
-		err = updateFilterFile(filePath, cfg.Override, filter)
+		err = updateFilterFile(cfg.BaseFilePath, filePath, cfg.Override, filter)
 		if err != nil {
-			fmt.Println("Error updating filter file:", err)
+			logger(fmt.Sprintf("Error updating filter file: %v\n", err))
 			continue
 		}
-		fmt.Println("Filter file updated successfully!")
-		fmt.Printf("Filter blocks written to file: %s\nAt Time: %s\n", filePath, time.Now())
+		logger("Filter file updated successfully!\n")
+		logger(fmt.Sprintf("Filter blocks written to file: %s\nAt Time: %s\n", filePath, time.Now()))
 
-		fmt.Println("Waiting 1 hour before next update...")
+		logger("Waiting 1 hour before next update...\n")
 		time.Sleep(time.Hour)
 	}
 }
