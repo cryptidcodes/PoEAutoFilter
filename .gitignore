@@ -7,3 +7,5 @@ config.json
 
 # Local filter files (optional, if you don't want to track your test filters)
 *.filter
+
+.agent/

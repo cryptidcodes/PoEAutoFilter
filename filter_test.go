@@ -69,12 +69,12 @@ func TestWriteFilterBlocks(t *testing.T) {
 	}
 
 	// Mock prices
-	ChaosPrice = 1.0
-	ExaltedPrice = 10.0
-	DivinePrice = 100.0
-	typeSlice = []string{"Currency"}
+	prices := PriceTable{
+		Exalted: 10.0,
+		Divine:  100.0,
+	}
 
-	result := writeFilterBlocks(cfg, valueMap)
+	result := writeFilterBlocks(cfg, valueMap, prices)
 
 	// Check that 10 Chaos Tier comes BEFORE 1 Chaos Tier
 	idx10 := bytes.Index([]byte(result), []byte("## 10 Chaos Tier ##"))

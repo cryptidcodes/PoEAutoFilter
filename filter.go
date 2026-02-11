@@ -9,9 +9,17 @@ import (
 	"time"
 )
 
+type PriceTable struct {
+	Exalted float64
+	Divine  float64
+}
+
 // writeFilterBlocks generates the filter syntax for each item tier based on dynamic configuration.
-func writeFilterBlocks(cfg Config, valueMap map[string]map[string]float64) string {
+func writeFilterBlocks(cfg Config, valueMap map[string]map[string]float64, prices PriceTable) string {
 	var buf bytes.Buffer
+
+	// Use local type slice instead of global
+	typeSlice := []string{"Currency", "Fragments", "Scarabs", "Fossils", "Essences"}
 
 	// 1. Prepare and sort tiers by absolute Chaos value (descending)
 	type sortedTier struct {
@@ -23,9 +31,9 @@ func writeFilterBlocks(cfg Config, valueMap map[string]map[string]float64) strin
 		absVal := t.Value
 		switch t.Currency {
 		case "Exalted":
-			absVal *= ExaltedPrice
+			absVal *= prices.Exalted
 		case "Divine":
-			absVal *= DivinePrice
+			absVal *= prices.Divine
 		}
 		sorted = append(sorted, sortedTier{Tier: t, AbsChaosVal: absVal})
 	}
