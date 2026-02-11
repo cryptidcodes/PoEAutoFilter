@@ -66,13 +66,13 @@ const (
 	ConfigText = "config.txt"
 )
 
-// LoadConfig attempts to load config from JSON, falling back to legacy text format.
-func LoadConfig() (Config, error) {
+// LoadConfig attempts to load config from JSON at the specified path, falling back to legacy text format.
+func LoadConfig(path string) (Config, error) {
 	var cfg Config
 
 	// Try loading from JSON first
-	if _, err := os.Stat(ConfigJSON); err == nil {
-		data, err := os.ReadFile(ConfigJSON)
+	if _, err := os.Stat(path); err == nil {
+		data, err := os.ReadFile(path)
 		if err != nil {
 			return Config{}, err
 		}
@@ -96,7 +96,7 @@ func LoadConfig() (Config, error) {
 	if (len(cfg.StyleLibrary) == 0 && len(cfg.Styles) > 0) || len(cfg.Tiers) == 0 {
 		migrateStyles(&cfg)
 		// Save migrated config to JSON
-		SaveConfig(cfg)
+		SaveConfig(cfg, path)
 	}
 
 	return cfg, nil
@@ -163,13 +163,13 @@ func migrateStyles(cfg *Config) {
 	cfg.Styles = nil
 }
 
-// SaveConfig saves the configuration to config.json
-func SaveConfig(cfg Config) error {
+// SaveConfig saves the configuration to the specified path
+func SaveConfig(cfg Config, path string) error {
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(ConfigJSON, data, 0644)
+	return os.WriteFile(path, data, 0644)
 }
 
 // parseLegacyConfig reads and parses the old config.txt file.

@@ -1,6 +1,6 @@
 # PoEAutoFilter
 
-PoEAutoFilter is a powerful, GUI-based tool designed to automatically maintain and update your Path of Exile item filters based on real-time market data from [poe.ninja](https://poe.ninja). It calculates the value of item stacks (Currency, Fragments, Scarabs, Essences, and Fossils) and applies custom styling based on their current Chaos, Exalted, or Divine equivalent value.
+PoEAutoFilter is a tool designed to automatically maintain and update your Path of Exile item filters based on real-time market data from [poe.ninja](https://poe.ninja). It calculates the value of item stacks (Currency, Fragments, Scarabs, Essences, and Fossils) and applies custom styling based on their current Chaos, Exalted, or Divine equivalent value.
 
 ## Key Features
 
