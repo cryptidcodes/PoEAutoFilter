@@ -1,73 +1,47 @@
 # PoEAutoFilter
 
-PoEAutoFilter is a tool designed to automatically maintain and update your Path of Exile item filters based on real-time market data from [poe.ninja](https://poe.ninja). It calculates the value of item stacks (Currency, Fragments, Scarabs, Essences, and Fossils) and applies custom styling based on their current Chaos, Exalted, or Divine equivalent value.
+PoEAutoFilter is a powerful tool designed to automatically maintain and update your Path of Exile item filters based on real-time market data from [poe.ninja](https://poe.ninja). It ensures your filter always reflects the actual value of item stacks like Currency, Fragments, Scarabs, and more, using custom visual styles that you define.
 
-## Key Features
+## 🚀 Key Features
 
-- **Real-Time Market Integration**: Automatically fetches the latest prices from poe.ninja.
-- **Dynamic Stack Valuation**: Calculates if a stack of items meets your value thresholds (e.g., "Is this 10x Glassblower's Bauble stack worth at least 1 Chaos?").
-- **Full GUI Configuration**: Easily manage league, file paths, styles, and value tiers through a clean interface.
-- **Custom Style Library**: Define rich visual styles including font size, text/border/background colors, alert sounds, beam effects, and minimap icons.
-- **Flexible Value Tiers**: Map specific value thresholds to your custom styles.
-- **Continuous Updates**: Can run in the background and update your filter file hourly to keep up with a volatile economy.
-- **Template-Based Generation**: Appends its rules to your own base filter, letting you keep your existing rules for rares, maps, and other items.
+- **Real-Time Market Integration**: Fetches the latest item prices automatically.
+- **Dynamic Stack Valuation**: Smartly calculates if a stack of items (e.g., 10x Glassblower's Baubles) is worth showing based on your custom thresholds.
+- **Native Cross-Platform GUI**: Easy-to-use interface available for both Windows and Linux.
+- **Style Library**: Create custom themes with specific colors, font sizes, alert sounds, minimap icons, and light beams.
+- **Template-Based**: Merges its dynamic rules with your existing favorite filter (like a FilterBlade base), so you keep all your specialized rules for Maps, Rares, and Uniques.
 
-## Supported Item Types
+## 📦 Supported Item Types
 
-Currently, the program supports automated valuation for:
+PoEAutoFilter currently manages automated valuation for:
+
 - Currencies
 - Fragments
 - Scarabs
 - Essences
 - Fossils
 
-## First-Time Setup
+## 📖 First-Time Setup
 
-1. **Download & Launch**: Run the `PoEAutoFilter` executable.
-2. **Set Your League**: Enter the current league name (e.g., `Mercenaries` or `Standard`) in the **General** tab.
-3. **Select Files**:
-    - **Base Filter File**: Select a "template" filter (e.g., one generated from [FilterBlade](https://www.filterblade.xyz)). This file will remain untouched as a source.
-    - **Output Filter File**: Select the actual `.filter` file in your Path of Exile documents folder that the game uses. You can create a new `.filter` file that the program will write to. Name it something like `AutoFilter.filter`.
-4. **Configure Styles & Tiers**:
-    - Go to the **Style Library** tab to define how items should look.
-    - Go to the **Value Tiers** tab to set your thresholds (e.g., "Show items worth > 5 Chaos using the 'Mid Tier' style").
-5. **Start**: Click **Save & Start AutoFilter** in the General tab. The program will start updating your filter file hourly. You must reload the filter in-game to see the changes.
+1. **Launch**: Open the `PoEAutoFilter` application.
+2. **Current League**: In the **General** tab, ensure the League name matches what you are currently playing (e.g., `Standard` or the current Challenge League).
+3. **Select Your Files**:
+   - **Base Filter File**: Select your "source" filter (e.g., your downloaded FilterBlade file). This file is never modified.
+   - **Output Filter File**: Select the `.filter` file in your Path of Exile documents folder that the game actually loads.
+4. **Define Your Styles**:
+   - Go to the **Style Library** and create styles (e.g., "High Value", "Mid Value"). Customize colors, sounds, and icons.
+5. **Set Your Tiers**:
+   - Go to the **Value Tiers** tab. Map your styles to specific price points (e.g., "Use 'High Value' style for anything worth more than 10 Chaos").
+6. **Start**: Click **Save & Start AutoFilter**. The program will now monitor the economy and keep your output filter file updated!
 
-## User Walkthrough
+## 💡 How It Works
 
-### General Tab
-- **League**: Ensure this matches the league you are playing. If you aren't sure, open the trade site and check the URL.
-- **Custom Rules Override**: Directly paste any raw filter blocks you want to *always* appear at the top of the generated filter (useful for custom rules not covered by the auto-valuation).
-- **Activity Log**: Watch this area to see the bot fetching prices and updating your file.
+PoEAutoFilter reads your **Base Filter**, appends its own dynamically generated rules at the very top, and saves the combined version to your **Output Filter**.
 
-### Style Library Tab
-- **Add New Style**: Creates a new style entry.
-- **Edit Style**: Opens a detailed editor where you can add "Actions" like:
-    - `SetTextColor`, `SetBackgroundColor`, `SetBorderColor` (includes a full Color Picker).
-    - `SetFontSize` (1-45).
-    - `PlayAlertSound` (ID 1-16 and Volume).
-    - `PlayEffect` (Beam color and duration).
-    - `MinimapIcon` (Size, Color, and Shape).
-- **Preview Rules**: See the raw Path of Exile filter code generated by your style.
+> [!IMPORTANT]
+> When the program updates your file, you still need to **Reload** the filter inside Path of Exile (Escape -> Options -> Game -> Click the 'Reload' button next to your filter) to see the changes in-game.
 
-### Value Tiers Tab
-- **Name**: A label for your tier (e.g., "High Value").
-- **Val / Currency**: The threshold (e.g., `1.0` `Divine` or `5.0` `Chaos`).
-- **Style**: Choose a style from your Library to apply to items meeting this value.
-- The bot will evaluate item stacks and place them in the *highest* applicable tier.
+## ⚙️ Advanced Configuration (Optional)
 
-## How It Works
+For users who want even more control, PoEAutoFilter supports:
 
-PoEAutoFilter reads your **Base Filter File**, appends its generated rules (and your Custom Overrides), and writes the result to the **Output Filter File**. 
-
-> [!IMPORTANT!]
-> The program updates the file on disk, but you must still **Reload** the filter in Path of Exile (usually via the 'Reload' button next to the filter name in Game settings) to see the changes in-game.
-
-## Support & Contributions
-
-This project is in active development. Feel free to report issues or suggest features!
-
-## TODO
-
-- Implement caching of poe.ninja prices to reduce API calls.
-- Implement a way to automatically reload the filter in-game using the `/itemfilter` command.
+- **Custom Rules Override**: Directly paste raw filter code into the General tab to have it always appear at the top of your filter.

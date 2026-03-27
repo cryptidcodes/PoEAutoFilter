@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ func TestUpdateFilterFile(t *testing.T) {
 	}
 
 	newRules := "Show\nBaseType == \"Chaos Orb\"\n"
-	err = updateFilterFile(baseFile, outputFile, newRules)
+	err = UpdateFilterFile(baseFile, outputFile, newRules)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestWriteFilterBlocks(t *testing.T) {
 		Divine:  100.0,
 	}
 
-	result := writeFilterBlocks(cfg, valueMap, prices)
+	result := WriteFilterBlocks(cfg, valueMap, prices)
 
 	// Check that 10 Chaos Tier comes BEFORE 1 Chaos Tier
 	idx10 := bytes.Index([]byte(result), []byte("## 10 Chaos Tier ##"))

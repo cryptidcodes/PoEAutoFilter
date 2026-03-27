@@ -1,4 +1,6 @@
-package main
+//go:build windows
+
+package logging
 
 import (
 	"fmt"
@@ -8,7 +10,8 @@ import (
 	"github.com/lxn/walk"
 )
 
-// LogPanic recovers from a panic, logs the stack trace, and shows an error message
+// LogPanic recovers from a panic, logs the stack trace, and shows a native Windows
+// error dialog using walk.MsgBox. If no owner window is available, falls back to stderr.
 func LogPanic(context string, owner walk.Form) {
 	if r := recover(); r != nil {
 		stack := string(debug.Stack())
@@ -19,8 +22,6 @@ func LogPanic(context string, owner walk.Form) {
 		if owner != nil {
 			walk.MsgBox(owner, "Application Error", fmt.Sprintf("An error occurred:\n%v\n\nSee debug.log for details.", r), walk.MsgBoxIconError)
 		} else {
-			// Fallback if no owner window
-			// walk.MsgBox(nil, ...) might work or might not depending on thread
 			log.Println("Could not show error dialog (no owner window).")
 		}
 	}

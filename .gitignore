@@ -1,11 +1,29 @@
-# Binaries
-PoEAutoFilter
-PoEAutoFilter.exe
+# Test Binaries
+AutoFilter-linux
+AutoFilter-windows.exe
+
+# Internal docs
+docs/
+
+# Windows-specific build files
+PoEAutoFilter.exe.manifest
+rsrc.syso
+
+# Secrets
+.env
+server/
 
 # Configs
 config.json
 
-# Local filter files (optional, if you don't want to track your test filters)
+# Local filter files
 *.filter
 
+# Debug logs
+*.log
+
+# Updates
+updates/
+
+# Agent files
 .agent/

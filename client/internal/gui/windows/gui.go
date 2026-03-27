@@ -1,24 +1,24 @@
-package main
+//go:build windows
+// +build windows
+
+// Package windows provides the Windows native GUI for PoEAutoFilter using lxn/walk.
+package windows
 
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cryptidcodes/PoEAutoFilter/client/internal/core"
 
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 )
 
-// --- Dialogs ---
-
-// --- Main GUI ---
-
-func init() {
-	RunGUI = runGUI
-}
-
-func runGUI(app *App) {
+// RunGUI is the Windows GUI entry point.
+func RunGUI(app *core.App) {
 	defer LogPanic("RunGUI", nil)
 
 	var mw *walk.MainWindow
@@ -28,12 +28,14 @@ func runGUI(app *App) {
 	var tierTable *walk.TableView
 	var basePathLE *walk.LineEdit
 	var outputPathLE *walk.LineEdit
+	var leagueLE *walk.LineEdit
+	var overrideTE *walk.TextEdit
 
-	// Models
+	// Table Models
 	styleModel := NewStyleModel(app.Config.StyleLibrary)
 	tierModel := NewTierModel(app.Config.Tiers)
 
-	// Bind App log function to GUI
+	// Log Function Binding — routes app.Log() calls to the GUI Activity Log
 	app.LogFunc = func(msg string) {
 		if logText != nil {
 			logText.Synchronize(func() {
@@ -44,7 +46,7 @@ func runGUI(app *App) {
 		}
 	}
 
-	if _, err := (MainWindow{
+	if err := (MainWindow{
 		AssignTo: &mw,
 		Title:    "PoEAutoFilter Config",
 		MinSize:  Size{Width: 800, Height: 600},
@@ -52,6 +54,7 @@ func runGUI(app *App) {
 		Children: []Widget{
 			TabWidget{
 				Pages: []TabPage{
+					// TAB 1: GENERAL SETTINGS
 					{
 						Title:  "General",
 						Layout: VBox{},
@@ -61,10 +64,13 @@ func runGUI(app *App) {
 								Children: []Widget{
 									Label{Text: "League:"},
 									LineEdit{
-										Text: app.Config.League,
+										AssignTo: &leagueLE,
+										Text:     app.Config.League,
 										OnTextChanged: func() {
-											// V1: Manual sync on start.
-											// Ideally we'd bind this properly.
+											if leagueLE != nil {
+												app.Config.League = strings.TrimSpace(leagueLE.Text())
+												app.UpdateConfig(app.Config)
+											}
 										},
 									},
 									HSpacer{},
@@ -76,39 +82,26 @@ func runGUI(app *App) {
 										ReadOnly: true,
 									},
 									PushButton{Text: "Browse...", OnClicked: func() {
-										app.Log("DEBUG: [Base Filter Browse] Button clicked\n")
 										if mw == nil {
-											app.Log("DEBUG: [Base Filter Browse] Error: Main window (mw) is nil!\n")
 											return
 										}
-										// Clean the path for Windows
 										cleanPath := filepath.FromSlash(filepath.Clean(app.Config.BaseFilePath))
-
 										dlg := new(walk.FileDialog)
 										dlg.Title = "Select Base Filter File"
 										dlg.InitialDirPath = filepath.Dir(cleanPath)
 										dlg.FilePath = cleanPath
 										dlg.Filter = "Filter Files (*.filter)|*.filter|Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
 
-										app.Log("DEBUG: [Base Filter Browse] Responding to dialog...\n")
 										ok, err := dlg.ShowOpen(mw)
 										if err != nil {
-											app.Log(fmt.Sprintf("DEBUG: [Base Filter Browse] Dialog Error: %v\n", err))
+											app.Log(fmt.Sprintf("Dialog Error: %v\n", err))
 										}
-
 										if ok {
-											app.Log(fmt.Sprintf("DEBUG: [Base Filter Browse] User selected: '%s'\n", dlg.FilePath))
 											app.Config.BaseFilePath = filepath.ToSlash(dlg.FilePath)
 											if basePathLE != nil {
 												basePathLE.SetText(app.Config.BaseFilePath)
-												app.Log("DEBUG: [Base Filter Browse] Updated LineEdit text\n")
-											} else {
-												app.Log("DEBUG: [Base Filter Browse] Warning: basePathLE is nil!\n")
 											}
 											app.UpdateConfig(app.Config)
-											app.Log("DEBUG: [Base Filter Browse] Config updated and saved\n")
-										} else {
-											app.Log("DEBUG: [Base Filter Browse] User cancelled dialog or closed it\n")
 										}
 									}},
 
@@ -119,39 +112,26 @@ func runGUI(app *App) {
 										ReadOnly: true,
 									},
 									PushButton{Text: "Browse...", OnClicked: func() {
-										app.Log("DEBUG: [Output Filter Browse] Button clicked\n")
 										if mw == nil {
-											app.Log("DEBUG: [Output Filter Browse] Error: Main window (mw) is nil!\n")
 											return
 										}
-										// Clean the path for Windows
 										cleanPath := filepath.FromSlash(filepath.Clean(app.Config.FilePath))
-
 										dlg := new(walk.FileDialog)
 										dlg.Title = "Select Output Filter File"
 										dlg.InitialDirPath = filepath.Dir(cleanPath)
 										dlg.FilePath = cleanPath
 										dlg.Filter = "Filter Files (*.filter)|*.filter|Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
 
-										app.Log("DEBUG: [Output Filter Browse] Responding to dialog...\n")
 										ok, err := dlg.ShowSave(mw)
 										if err != nil {
-											app.Log(fmt.Sprintf("DEBUG: [Output Filter Browse] Dialog Error: %v\n", err))
+											app.Log(fmt.Sprintf("Dialog Error: %v\n", err))
 										}
-
 										if ok {
-											app.Log(fmt.Sprintf("DEBUG: [Output Filter Browse] User selected: '%s'\n", dlg.FilePath))
 											app.Config.FilePath = filepath.ToSlash(dlg.FilePath)
 											if outputPathLE != nil {
 												outputPathLE.SetText(app.Config.FilePath)
-												app.Log("DEBUG: [Output Filter Browse] Updated LineEdit text\n")
-											} else {
-												app.Log("DEBUG: [Output Filter Browse] Warning: outputPathLE is nil!\n")
 											}
 											app.UpdateConfig(app.Config)
-											app.Log("DEBUG: [Output Filter Browse] Config updated and saved\n")
-										} else {
-											app.Log("DEBUG: [Output Filter Browse] User cancelled dialog or closed it\n")
 										}
 									}},
 								},
@@ -159,10 +139,14 @@ func runGUI(app *App) {
 							VSpacer{Size: 10},
 							Label{Text: "Custom Rules Override:"},
 							TextEdit{
-								Text:    app.Config.Override,
-								MinSize: Size{Height: 100},
+								AssignTo: &overrideTE,
+								Text:     app.Config.Override,
+								MinSize:  Size{Height: 100},
 								OnTextChanged: func() {
-									// Capture text logic needs binding
+									if overrideTE != nil {
+										app.Config.Override = overrideTE.Text()
+										app.UpdateConfig(app.Config)
+									}
 								},
 							},
 							VSpacer{},
@@ -174,14 +158,6 @@ func runGUI(app *App) {
 										app.StopBot()
 										startBtn.SetText("Start AutoFilter")
 									} else {
-										// Sync config from UI elements (V1 Hack)
-										// In a real app we'd use DataBinder or ViewModel
-										// Here we assume user might have typed in League/Override
-										// For now, trusting the initial values + simple updates.
-										// Note: Realistically we need references to League/Override LineEdits here.
-										// Skipping full binding for simplicity of this artifact.
-
-										app.UpdateConfig(app.Config) // Save to disk
 										app.StartBot()
 										startBtn.SetText("Stop AutoFilter")
 									}
@@ -189,6 +165,8 @@ func runGUI(app *App) {
 							},
 						},
 					},
+
+					// TAB 2: STYLE LIBRARY
 					{
 						Title:  "Style Library",
 						Layout: VBox{},
@@ -197,22 +175,31 @@ func runGUI(app *App) {
 								Layout: HBox{},
 								Children: []Widget{
 									PushButton{Text: "Add Style", OnClicked: func() {
-										newStyle := Style{Name: "New Style", Actions: []FilterAction{}}
+										newStyle := core.Style{Name: "New Style", Actions: []core.FilterAction{}}
 										app.Config.StyleLibrary = append(app.Config.StyleLibrary, newStyle)
-										// Rebuild model logic
-										styleModel.Items = append(styleModel.Items, &StyleItem{Name: newStyle.Name, Preview: "", Style: &app.Config.StyleLibrary[len(app.Config.StyleLibrary)-1]})
+										app.UpdateConfig(app.Config)
+
+										// Refresh style model from updated config
+										styleModel.Items = make([]*StyleItem, len(app.Config.StyleLibrary))
+										for i := range app.Config.StyleLibrary {
+											s := &app.Config.StyleLibrary[i]
+											styleModel.Items[i] = &StyleItem{
+												Name:    s.Name,
+												Preview: s.ToFilterLines(),
+												Style:   s,
+											}
+										}
 										styleModel.PublishRowsReset()
 									}},
 									PushButton{Text: "Edit Selected", OnClicked: func() {
 										idx := styleTable.CurrentIndex()
 										if idx >= 0 && idx < len(styleModel.Items) {
 											item := styleModel.Items[idx]
-											if cmd, _ := RunStyleEditor(mw, item.Style); cmd == 1 { // 1 = Accepted
-												// Update item display
+											if cmd, _ := RunStyleEditor(mw, item.Style); cmd == 1 {
+												app.UpdateConfig(app.Config)
 												item.Name = item.Style.Name
 												item.Preview = item.Style.ToFilterLines()
 												styleModel.PublishRowsReset()
-												app.UpdateConfig(app.Config)
 											}
 										}
 									}},
@@ -234,7 +221,7 @@ func runGUI(app *App) {
 									{Title: "Preview", Width: 300},
 								},
 								Model: styleModel,
-								OnItemActivated: func() { // Double click
+								OnItemActivated: func() {
 									idx := styleTable.CurrentIndex()
 									if idx >= 0 {
 										item := styleModel.Items[idx]
@@ -249,6 +236,8 @@ func runGUI(app *App) {
 							},
 						},
 					},
+
+					// TAB 3: VALUE TIERS
 					{
 						Title:  "Value Tiers",
 						Layout: VBox{},
@@ -257,11 +246,26 @@ func runGUI(app *App) {
 								Layout: HBox{},
 								Children: []Widget{
 									PushButton{Text: "Add Tier", OnClicked: func() {
-										newTier := Tier{Name: "New Tier", Value: 1.0, Currency: "Chaos", StyleName: "Default"}
+										defaultStyle := "Default"
+										if len(app.Config.StyleLibrary) > 0 {
+											defaultStyle = app.Config.StyleLibrary[0].Name
+										}
+										newTier := core.Tier{Name: "New Tier", Value: 1.0, Currency: "Chaos", StyleName: defaultStyle}
 										app.Config.Tiers = append(app.Config.Tiers, newTier)
-										tierModel.Items = append(tierModel.Items, &TierItem{
-											Name: newTier.Name, Value: "1.00", Currency: "Chaos", Style: "Default", Tier: &app.Config.Tiers[len(app.Config.Tiers)-1],
-										})
+										app.UpdateConfig(app.Config)
+
+										// Refresh tier model from updated config
+										tierModel.Items = make([]*TierItem, len(app.Config.Tiers))
+										for i := range app.Config.Tiers {
+											t := &app.Config.Tiers[i]
+											tierModel.Items[i] = &TierItem{
+												Name:     t.Name,
+												Value:    fmt.Sprintf("%.2f", t.Value),
+												Currency: t.Currency,
+												Style:    t.StyleName,
+												Tier:     t,
+											}
+										}
 										tierModel.PublishRowsReset()
 									}},
 									PushButton{Text: "Edit Selected", OnClicked: func() {
@@ -317,6 +321,7 @@ func runGUI(app *App) {
 					},
 				},
 			},
+			// ACTIVITY LOG PANEL
 			GroupBox{
 				Title:  "Activity Log",
 				Layout: VBox{},
@@ -329,7 +334,41 @@ func runGUI(app *App) {
 				},
 			},
 		},
-	}.Run()); err != nil {
+	}.Create()); err != nil {
 		log.Fatal(err)
 	}
+
+	go checkUpdatesWindows(app, mw)
+
+	mw.Run()
+}
+
+func checkUpdatesWindows(coreApp *core.App, mw *walk.MainWindow) {
+	info, hasUpdate, err := core.CheckUpdate("")
+	if err != nil {
+		log.Printf("[gui/windows] Failed to check for updates: %v", err)
+		return
+	}
+	if hasUpdate && info != nil {
+		mw.Synchronize(func() {
+			msg := fmt.Sprintf("A new version (%s) is available!\r\n\r\nRelease Notes:\r\n%s\r\n\r\nWould you like to download and install it now?", info.Version, info.ReleaseNotes)
+			result := walk.MsgBox(mw, "Update Available", msg, walk.MsgBoxYesNo|walk.MsgBoxIconQuestion)
+			if result == walk.DlgCmdYes {
+				log.Printf("[gui/windows] User accepted update to %s", info.Version)
+				go performUpdateWindows(info.WindowsURL, mw)
+			}
+		})
+	}
+}
+
+func performUpdateWindows(url string, mw *walk.MainWindow) {
+	err := core.ApplyUpdate(url)
+	mw.Synchronize(func() {
+		if err != nil {
+			walk.MsgBox(mw, "Update Failed", fmt.Sprintf("Error applying update: %v", err), walk.MsgBoxIconError)
+		} else {
+			walk.MsgBox(mw, "Update Successful", "Update successful! Please restart the application (it will exit now).", walk.MsgBoxIconInformation)
+			os.Exit(0)
+		}
+	})
 }

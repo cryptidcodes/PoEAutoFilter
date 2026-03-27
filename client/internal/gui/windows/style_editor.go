@@ -1,22 +1,24 @@
-package main
+//go:build windows
+// +build windows
+
+// style_editor.go — Windows-only advanced style editor dialog using lxn/walk.
+
+package windows
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
+
+	"github.com/cryptidcodes/PoEAutoFilter/client/internal/core"
 
 	"github.com/lxn/walk"
 	. "github.com/lxn/walk/declarative"
 )
 
-// RunStyleEditor opens the advanced style editor dialog
-func RunStyleEditor(owner walk.Form, style *Style) (int, error) {
-	log.Println("RunStyleEditor: Entered")
-	defer func() {
-		log.Println("RunStyleEditor: Exiting (defer)")
-		LogPanic("RunStyleEditor", owner)
-	}()
+// RunStyleEditor opens the advanced style editor dialog.
+func RunStyleEditor(owner walk.Form, style *core.Style) (int, error) {
+	defer LogPanic("RunStyleEditor", owner)
 
 	var dlg *walk.Dialog
 	var nameEdit *walk.LineEdit
@@ -25,23 +27,13 @@ func RunStyleEditor(owner walk.Form, style *Style) (int, error) {
 	var addBtn, removeBtn, acceptBtn, cancelBtn *walk.PushButton
 	var actionTypeCombo *walk.ComboBox
 
-	// ViewModel for the list of actions
-	log.Println("RunStyleEditor: Creating ActionListModel")
 	actionModel := NewActionListModel(style.Actions)
 
 	actionTypes := []string{
-		"SetFontSize",
-		"SetTextColor",
-		"SetBorderColor",
-		"SetBackgroundColor",
-		"PlayAlertSound",
-		"PlayEffect",
-		"MinimapIcon",
-		"DisableDropSound",
-		"Custom",
+		"SetFontSize", "SetTextColor", "SetBorderColor", "SetBackgroundColor",
+		"PlayAlertSound", "PlayEffect", "MinimapIcon", "DisableDropSound", "Custom",
 	}
 
-	log.Println("RunStyleEditor: Creating Dialog")
 	return Dialog{
 		AssignTo:      &dlg,
 		Title:         "Advanced Style Editor",
@@ -59,7 +51,6 @@ func RunStyleEditor(owner walk.Form, style *Style) (int, error) {
 			},
 			HSplitter{
 				Children: []Widget{
-					// Left Pane: Action List
 					Composite{
 						Layout: VBox{},
 						Children: []Widget{
@@ -68,7 +59,6 @@ func RunStyleEditor(owner walk.Form, style *Style) (int, error) {
 								AssignTo: &actionList,
 								Model:    actionModel,
 								OnCurrentIndexChanged: func() {
-									log.Printf("OnCurrentIndexChanged: %d", actionList.CurrentIndex())
 									updateEditorPane(editorContainer, actionModel, actionList.CurrentIndex())
 								},
 							},
@@ -80,36 +70,25 @@ func RunStyleEditor(owner walk.Form, style *Style) (int, error) {
 										Model:    actionTypes,
 										Value:    actionTypes[0],
 									},
-									PushButton{
-										AssignTo: &addBtn,
-										Text:     "Add",
-										OnClicked: func() {
-											log.Println("Add Button Clicked")
-											newType := actionTypeCombo.Text()
-											newAction := FilterAction{Type: newType, Values: getDefaultValuesForType(newType)}
-											actionModel.Actions = append(actionModel.Actions, newAction)
+									PushButton{AssignTo: &addBtn, Text: "Add", OnClicked: func() {
+										newType := actionTypeCombo.Text()
+										newAction := core.FilterAction{Type: newType, Values: getDefaultValuesForType(newType)}
+										actionModel.Actions = append(actionModel.Actions, newAction)
+										actionModel.PublishItemsReset()
+										actionList.SetCurrentIndex(len(actionModel.Actions) - 1)
+									}},
+									PushButton{AssignTo: &removeBtn, Text: "Remove", OnClicked: func() {
+										idx := actionList.CurrentIndex()
+										if idx >= 0 && idx < len(actionModel.Actions) {
+											actionModel.Actions = append(actionModel.Actions[:idx], actionModel.Actions[idx+1:]...)
 											actionModel.PublishItemsReset()
-											actionList.SetCurrentIndex(len(actionModel.Actions) - 1)
-										},
-									},
-									PushButton{
-										AssignTo: &removeBtn,
-										Text:     "Remove",
-										OnClicked: func() {
-											log.Println("Remove Button Clicked")
-											idx := actionList.CurrentIndex()
-											if idx >= 0 && idx < len(actionModel.Actions) {
-												actionModel.Actions = append(actionModel.Actions[:idx], actionModel.Actions[idx+1:]...)
-												actionModel.PublishItemsReset()
-												updateEditorPane(editorContainer, actionModel, -1) // Clear editor
-											}
-										},
-									},
+											updateEditorPane(editorContainer, actionModel, -1)
+										}
+									}},
 								},
 							},
 						},
 					},
-					// Right Pane: Contextual Editor
 					Composite{
 						AssignTo: &editorContainer,
 						Layout:   VBox{},
@@ -123,72 +102,45 @@ func RunStyleEditor(owner walk.Form, style *Style) (int, error) {
 				Layout: HBox{},
 				Children: []Widget{
 					HSpacer{},
-					PushButton{
-						AssignTo: &acceptBtn,
-						Text:     "Save Style",
-						OnClicked: func() {
-							log.Println("Save Button Clicked")
-							style.Name = nameEdit.Text()
-							style.Actions = actionModel.Actions
-							dlg.Accept()
-						},
-					},
-					PushButton{
-						AssignTo: &cancelBtn,
-						Text:     "Cancel",
-						OnClicked: func() {
-							log.Println("Cancel Button Clicked")
-							dlg.Cancel()
-						},
-					},
+					PushButton{AssignTo: &acceptBtn, Text: "Save Style", OnClicked: func() {
+						style.Name = nameEdit.Text()
+						style.Actions = actionModel.Actions
+						dlg.Accept()
+					}},
+					PushButton{AssignTo: &cancelBtn, Text: "Cancel", OnClicked: func() {
+						dlg.Cancel()
+					}},
 				},
 			},
 		},
 	}.Run(owner)
 }
 
-// updateEditorPane dynamically rebuilds the right-hand pane based on the selected action
 func updateEditorPane(container *walk.Composite, model *ActionListModel, index int) {
-	log.Printf("updateEditorPane: Index %d", index)
-
-	// Clean up old children
 	children := container.Children()
 	if children.Len() > 0 {
-		log.Printf("updateEditorPane: Disposing %d children", children.Len())
-		// Walk docs suggest SetSuspended(true) during updates to avoid flicker/re-layout issues
 		container.SetSuspended(true)
 		defer container.SetSuspended(false)
-
 		for i := children.Len() - 1; i >= 0; i-- {
 			children.At(i).Dispose()
 		}
-		log.Println("updateEditorPane: Children disposed")
 	}
 
 	if index < 0 || index >= len(model.Actions) {
-		log.Println("updateEditorPane: No valid index, showing placeholder")
 		Label{Text: "Select an action to edit..."}.Create(NewBuilder(container))
 		return
 	}
 
 	action := &model.Actions[index]
-	log.Printf("updateEditorPane: Creating editor for action type: %s", action.Type)
-
-	// Create common header
 	builder := NewBuilder(container)
-	err := Composite{
+	Composite{
 		Layout: VBox{},
 		Children: []Widget{
 			Label{Text: fmt.Sprintf("Editing: %s", action.Type), Font: Font{Bold: true, PointSize: 10}},
 			VSpacer{Size: 5},
 		},
 	}.Create(builder)
-	if err != nil {
-		log.Printf("updateEditorPane: Error creating header: %v", err)
-	}
 
-	// Contextual Controls
-	log.Println("updateEditorPane: Switching on action type")
 	switch action.Type {
 	case "SetFontSize":
 		createFontSizeEditor(container, action)
@@ -203,16 +155,9 @@ func updateEditorPane(container *walk.Composite, model *ActionListModel, index i
 	default:
 		createGenericEditor(container, action)
 	}
-
-	// Re-layout
-	// container.SetLayout(walk.NewVBoxLayout()) // Potentially causing crash? Removing for now.
-	log.Println("updateEditorPane: Finished")
 }
 
-// --- Editor Components ---
-
-func createFontSizeEditor(parent *walk.Composite, action *FilterAction) {
-	log.Println("createFontSizeEditor: Entered")
+func createFontSizeEditor(parent *walk.Composite, action *core.FilterAction) {
 	val := 32
 	if len(action.Values) > 0 {
 		if v, err := strconv.Atoi(action.Values[0]); err == nil {
@@ -222,15 +167,12 @@ func createFontSizeEditor(parent *walk.Composite, action *FilterAction) {
 		action.Values = []string{"32"}
 	}
 
-	// Imperative approach to avoid declarative builder crash
 	cmp, err := walk.NewComposite(parent)
 	if err != nil {
-		log.Printf("createFontSizeEditor: Failed to create composite: %v", err)
 		return
 	}
 	defer func() {
 		if err != nil {
-			log.Printf("createFontSizeEditor: Error occurred, disposing: %v", err)
 			cmp.Dispose()
 		}
 	}()
@@ -238,19 +180,15 @@ func createFontSizeEditor(parent *walk.Composite, action *FilterAction) {
 	layout := walk.NewHBoxLayout()
 	cmp.SetLayout(layout)
 
-	// Label for "Size:"
 	lblSize, _ := walk.NewLabel(cmp)
 	lblSize.SetText("Size:")
 
-	// Slider
 	slider, _ := walk.NewSlider(cmp)
 	slider.SetRange(18, 45)
 	slider.SetValue(val)
 
-	// Value Display Label
 	lblVal, _ := walk.NewLabel(cmp)
 	lblVal.SetText(fmt.Sprintf("%d", val))
-	// Fix width for label
 	lblVal.SetMinMaxSize(walk.Size{Width: 30, Height: 0}, walk.Size{Width: 30, Height: 0})
 
 	slider.ValueChanged().Attach(func() {
@@ -258,52 +196,29 @@ func createFontSizeEditor(parent *walk.Composite, action *FilterAction) {
 		lblVal.SetText(fmt.Sprintf("%d", v))
 		action.Values[0] = fmt.Sprintf("%d", v)
 	})
-
-	log.Println("createFontSizeEditor: Created successfully (imperative)")
 }
 
-func createColorEditor(parent *walk.Composite, action *FilterAction) {
-	// Values: R G B A
+func createColorEditor(parent *walk.Composite, action *core.FilterAction) {
 	r, g, b, a := parseColor(action.Values)
-	// Ensure we have enough values
 	if len(action.Values) < 4 {
-		action.Values = []string{
-			strconv.Itoa(r), strconv.Itoa(g), strconv.Itoa(b), strconv.Itoa(a),
-		}
+		action.Values = []string{strconv.Itoa(r), strconv.Itoa(g), strconv.Itoa(b), strconv.Itoa(a)}
 	}
 
 	builder := NewBuilder(parent)
 	var rEdit, gEdit, bEdit, aEdit *walk.LineEdit
 
-	// Color selection via inputs (fallback since ColorDialog is missing in this walk version)
 	Composite{
 		Layout: Grid{Columns: 2},
 		Children: []Widget{
-			Label{Text: "Red (0-255):"},
-			LineEdit{
-				AssignTo: &rEdit, Text: strconv.Itoa(r),
-				OnTextChanged: func() { updateColorVal(action, 0, rEdit.Text()) },
-			},
-			Label{Text: "Green (0-255):"},
-			LineEdit{
-				AssignTo: &gEdit, Text: strconv.Itoa(g),
-				OnTextChanged: func() { updateColorVal(action, 1, gEdit.Text()) },
-			},
-			Label{Text: "Blue (0-255):"},
-			LineEdit{
-				AssignTo: &bEdit, Text: strconv.Itoa(b),
-				OnTextChanged: func() { updateColorVal(action, 2, bEdit.Text()) },
-			},
-			Label{Text: "Alpha (0-255):"},
-			LineEdit{
-				AssignTo: &aEdit, Text: strconv.Itoa(a),
-				OnTextChanged: func() { updateColorVal(action, 3, aEdit.Text()) },
-			},
+			Label{Text: "Red (0-255):"}, LineEdit{AssignTo: &rEdit, Text: strconv.Itoa(r), OnTextChanged: func() { updateColorVal(action, 0, rEdit.Text()) }},
+			Label{Text: "Green (0-255):"}, LineEdit{AssignTo: &gEdit, Text: strconv.Itoa(g), OnTextChanged: func() { updateColorVal(action, 1, gEdit.Text()) }},
+			Label{Text: "Blue (0-255):"}, LineEdit{AssignTo: &bEdit, Text: strconv.Itoa(b), OnTextChanged: func() { updateColorVal(action, 2, bEdit.Text()) }},
+			Label{Text: "Alpha (0-255):"}, LineEdit{AssignTo: &aEdit, Text: strconv.Itoa(a), OnTextChanged: func() { updateColorVal(action, 3, aEdit.Text()) }},
 		},
 	}.Create(builder)
 }
-func updateColorVal(action *FilterAction, idx int, val string) {
-	// Basic validation
+
+func updateColorVal(action *core.FilterAction, idx int, val string) {
 	if _, err := strconv.Atoi(val); err == nil {
 		if len(action.Values) > idx {
 			action.Values[idx] = val
@@ -311,9 +226,8 @@ func updateColorVal(action *FilterAction, idx int, val string) {
 	}
 }
 
-func createSoundEditor(parent *walk.Composite, action *FilterAction) {
-	id := "1"
-	vol := "100"
+func createSoundEditor(parent *walk.Composite, action *core.FilterAction) {
+	id, vol := "1", "100"
 	if len(action.Values) > 0 {
 		id = action.Values[0]
 	}
@@ -327,37 +241,21 @@ func createSoundEditor(parent *walk.Composite, action *FilterAction) {
 	builder := NewBuilder(parent)
 	var idCombo *walk.ComboBox
 	var volEdit *walk.LineEdit
-
 	ids := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "Shaper", "Elder"}
 
 	Composite{
 		Layout: Grid{Columns: 2},
 		Children: []Widget{
 			Label{Text: "Sound ID:"},
-			ComboBox{
-				AssignTo: &idCombo,
-				Model:    ids,
-				Value:    id,
-				Editable: true,
-				OnTextChanged: func() {
-					action.Values[0] = idCombo.Text()
-				},
-			},
+			ComboBox{AssignTo: &idCombo, Model: ids, Value: id, Editable: true, OnTextChanged: func() { action.Values[0] = idCombo.Text() }},
 			Label{Text: "Volume (0-300):"},
-			LineEdit{
-				AssignTo: &volEdit,
-				Text:     vol,
-				OnTextChanged: func() {
-					action.Values[1] = volEdit.Text()
-				},
-			},
+			LineEdit{AssignTo: &volEdit, Text: vol, OnTextChanged: func() { action.Values[1] = volEdit.Text() }},
 		},
 	}.Create(builder)
 }
 
-func createEffectEditor(parent *walk.Composite, action *FilterAction) {
-	color := "White"
-	temp := ""
+func createEffectEditor(parent *walk.Composite, action *core.FilterAction) {
+	color, temp := "White", ""
 	if len(action.Values) > 0 {
 		color = action.Values[0]
 	}
@@ -369,7 +267,6 @@ func createEffectEditor(parent *walk.Composite, action *FilterAction) {
 	}
 
 	colors := []string{"Red", "Green", "Blue", "Brown", "White", "Yellow", "Cyan", "Grey", "Orange", "Pink", "Purple"}
-
 	builder := NewBuilder(parent)
 	var colorCombo *walk.ComboBox
 	var tempCheck *walk.CheckBox
@@ -378,41 +275,26 @@ func createEffectEditor(parent *walk.Composite, action *FilterAction) {
 		Layout: HBox{},
 		Children: []Widget{
 			Label{Text: "Color:"},
-			ComboBox{
-				AssignTo: &colorCombo,
-				Model:    colors,
-				Value:    color,
-				OnCurrentIndexChanged: func() {
-					action.Values[0] = colorCombo.Text()
-				},
-			},
-			CheckBox{
-				AssignTo: &tempCheck,
-				Text:     "Temporary",
-				Checked:  temp == "Temp",
-				OnCheckedChanged: func() {
-					if tempCheck.Checked() {
-						if len(action.Values) < 2 {
-							action.Values = append(action.Values, "Temp")
-						} else {
-							action.Values[1] = "Temp"
-						}
+			ComboBox{AssignTo: &colorCombo, Model: colors, Value: color, OnCurrentIndexChanged: func() { action.Values[0] = colorCombo.Text() }},
+			CheckBox{AssignTo: &tempCheck, Text: "Temporary", Checked: temp == "Temp", OnCheckedChanged: func() {
+				if tempCheck.Checked() {
+					if len(action.Values) < 2 {
+						action.Values = append(action.Values, "Temp")
 					} else {
-						if len(action.Values) > 1 {
-							action.Values = action.Values[:1]
-						}
+						action.Values[1] = "Temp"
 					}
-				},
-			},
+				} else {
+					if len(action.Values) > 1 {
+						action.Values = action.Values[:1]
+					}
+				}
+			}},
 		},
 	}.Create(builder)
 }
 
-func createMinimapIconEditor(parent *walk.Composite, action *FilterAction) {
-	size := "0"
-	color := "White"
-	shape := "Circle"
-
+func createMinimapIconEditor(parent *walk.Composite, action *core.FilterAction) {
+	size, color, shape := "0", "White", "Circle"
 	if len(action.Values) > 0 {
 		size = action.Values[0]
 	}
@@ -422,7 +304,6 @@ func createMinimapIconEditor(parent *walk.Composite, action *FilterAction) {
 	if len(action.Values) > 2 {
 		shape = action.Values[2]
 	}
-
 	action.Values = []string{size, color, shape}
 
 	colors := []string{"Red", "Green", "Blue", "Brown", "White", "Yellow", "Cyan", "Grey", "Orange", "Pink", "Purple"}
@@ -430,46 +311,28 @@ func createMinimapIconEditor(parent *walk.Composite, action *FilterAction) {
 	sizes := []string{"0 (Large)", "1 (Medium)", "2 (Small)"}
 
 	builder := NewBuilder(parent)
-	var sizeCombo *walk.ComboBox
-	var colorCombo *walk.ComboBox
-	var shapeCombo *walk.ComboBox
+	var sizeCombo, colorCombo, shapeCombo *walk.ComboBox
 
 	Composite{
 		Layout: Grid{Columns: 2},
 		Children: []Widget{
 			Label{Text: "Size:"},
-			ComboBox{
-				AssignTo:     &sizeCombo,
-				Model:        sizes,
-				CurrentIndex: getIndex(sizes, size, 0),
-				OnCurrentIndexChanged: func() {
-					parts := strings.Fields(sizeCombo.Text())
-					if len(parts) > 0 {
-						action.Values[0] = parts[0]
-					}
-				},
-			},
+			ComboBox{AssignTo: &sizeCombo, Model: sizes, CurrentIndex: getIndex(sizes, size, 0), OnCurrentIndexChanged: func() {
+				parts := strings.Fields(sizeCombo.Text())
+				if len(parts) > 0 {
+					action.Values[0] = parts[0]
+				}
+			}},
 			Label{Text: "Color:"},
-			ComboBox{
-				AssignTo:              &colorCombo,
-				Model:                 colors,
-				Value:                 color,
-				OnCurrentIndexChanged: func() { action.Values[1] = colorCombo.Text() },
-			},
+			ComboBox{AssignTo: &colorCombo, Model: colors, Value: color, OnCurrentIndexChanged: func() { action.Values[1] = colorCombo.Text() }},
 			Label{Text: "Shape:"},
-			ComboBox{
-				AssignTo:              &shapeCombo,
-				Model:                 shapes,
-				Value:                 shape,
-				OnCurrentIndexChanged: func() { action.Values[2] = shapeCombo.Text() },
-			},
+			ComboBox{AssignTo: &shapeCombo, Model: shapes, Value: shape, OnCurrentIndexChanged: func() { action.Values[2] = shapeCombo.Text() }},
 		},
 	}.Create(builder)
 }
 
-func createGenericEditor(parent *walk.Composite, action *FilterAction) {
+func createGenericEditor(parent *walk.Composite, action *core.FilterAction) {
 	valStr := strings.Join(action.Values, " ")
-
 	builder := NewBuilder(parent)
 	var edit *walk.LineEdit
 
@@ -477,31 +340,23 @@ func createGenericEditor(parent *walk.Composite, action *FilterAction) {
 		Layout: HBox{},
 		Children: []Widget{
 			Label{Text: "Values (space separated):"},
-			LineEdit{
-				AssignTo: &edit,
-				Text:     valStr,
-				OnTextChanged: func() {
-					action.Values = strings.Fields(edit.Text())
-				},
-			},
+			LineEdit{AssignTo: &edit, Text: valStr, OnTextChanged: func() { action.Values = strings.Fields(edit.Text()) }},
 		},
 	}.Create(builder)
 }
 
-// --- Helpers ---
+// --- Helper types and functions ---
 
 type ActionListModel struct {
 	walk.ListModelBase
-	Actions []FilterAction
+	Actions []core.FilterAction
 }
 
-func NewActionListModel(actions []FilterAction) *ActionListModel {
+func NewActionListModel(actions []core.FilterAction) *ActionListModel {
 	return &ActionListModel{Actions: actions}
 }
 
-func (m *ActionListModel) ItemCount() int {
-	return len(m.Actions)
-}
+func (m *ActionListModel) ItemCount() int { return len(m.Actions) }
 
 func (m *ActionListModel) Value(index int) interface{} {
 	if index < 0 || index >= len(m.Actions) {
@@ -521,13 +376,13 @@ func getDefaultValuesForType(t string) []string {
 	case "SetTextColor":
 		return []string{"255", "255", "255", "255"}
 	case "SetBorderColor":
-		return []string{"255", "0", "0", "255"}
+		return []string{"0", "0", "0", "255"}
 	case "SetBackgroundColor":
 		return []string{"0", "0", "0", "255"}
 	case "PlayAlertSound":
-		return []string{"1", "300"}
+		return []string{"1", "100"}
 	case "PlayEffect":
-		return []string{"White"}
+		return []string{"White", "Temp"}
 	case "MinimapIcon":
 		return []string{"0", "White", "Circle"}
 	case "DisableDropSound":
