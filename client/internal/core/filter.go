@@ -1,21 +1,30 @@
-package main
+package core
 
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"sort"
 	"time"
 )
 
+// PriceTable holds the current chaos-equivalent prices for major currencies.
+// These values are fetched from poe.ninja and used to convert tier thresholds
+// (defined in Exalted/Divine) to absolute chaos values during filter generation.
 type PriceTable struct {
 	Exalted float64
 	Divine  float64
 }
 
-// writeFilterBlocks generates the filter syntax for each item tier based on dynamic configuration.
-func writeFilterBlocks(cfg Config, valueMap map[string]map[string]float64, prices PriceTable) string {
+// WriteFilterBlocks generates the filter syntax for each item tier.
+// Items are grouped by category with a Show block per tier and a final Hide block.
+// Reference: https://www.pathofexile.com/item-filter/about
+func WriteFilterBlocks(cfg Config, valueMap map[string]map[string]float64, prices PriceTable) string {
+	log.Printf("[filter] Generating filter blocks for %d tiers, %d categories",
+		len(cfg.Tiers), len(valueMap))
+
 	var buf bytes.Buffer
 
 	// Use local type slice instead of global
@@ -84,12 +93,16 @@ func writeFilterBlocks(cfg Config, valueMap map[string]map[string]float64, price
 		}
 	}
 
+	log.Printf("[filter] Generated %d bytes of filter content", buf.Len())
 	return buf.String()
 }
 
-// updateFilterFile generates the new filter content and writes it to the output file.
+// UpdateFilterFile generates the new filter content and writes it to the output file.
 // It places the auto-generated economy rules at the top, followed by the entirety of the base filter.
-func updateFilterFile(basePath string, outputPath string, blocks ...string) error {
+// This preserves the user's base filter template while prepending dynamic price-based rules.
+func UpdateFilterFile(basePath string, outputPath string, blocks ...string) error {
+	log.Printf("[filter] Updating filter file: base=%q, output=%q", basePath, outputPath)
+
 	var buf bytes.Buffer
 
 	// 1. Add header for the auto-generated section
@@ -111,11 +124,13 @@ func updateFilterFile(basePath string, outputPath string, blocks ...string) erro
 	if basePath != "" {
 		content, err := os.ReadFile(basePath)
 		if err != nil && !os.IsNotExist(err) {
+			log.Printf("[filter] Error reading base filter: %v", err)
 			return fmt.Errorf("failed to read base filter: %w", err)
 		}
 		buf.Write(content)
 	}
 
 	// 4. Write final content to output file
+	log.Printf("[filter] Writing %d bytes to %s", buf.Len(), outputPath)
 	return os.WriteFile(outputPath, buf.Bytes(), 0644)
 }

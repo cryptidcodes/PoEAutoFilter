@@ -1,13 +1,16 @@
-package main
+package core
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
 	"time"
 )
 
+// Currency represents a single currency item from the poe.ninja currencyoverview API.
+// The ChaosEquivalent field is the primary value used for filter generation.
 type Currency struct {
 	CurrencyTypeName string `json:"currencyTypeName"`
 	Pay              struct {
@@ -54,6 +57,8 @@ type Currency struct {
 	DetailsID string `json:"detailsId"`
 }
 
+// Item represents a single item from the poe.ninja itemoverview API.
+// Used for categories like Scarabs, Fossils, Essences, etc.
 type Item struct {
 	ID        int    `json:"id"`
 	Name      string `json:"name"`
@@ -84,58 +89,94 @@ type Item struct {
 	ListingCount int           `json:"listingCount"`
 }
 
+// CurrencyResponse is the top-level JSON structure returned by the poe.ninja currencyoverview API.
 type CurrencyResponse struct {
 	Lines []Currency `json:"lines"`
 }
 
+// ItemResponse is the top-level JSON structure returned by the poe.ninja itemoverview API.
 type ItemResponse struct {
 	Lines []Item `json:"lines"`
 }
 
-// fetchCurrencyValues retrieves currency data from poe.ninja for a specific league.
-// It returns a slice of Currency objects or an error if the request fails.
-func fetchCurrencyValues(league string, itemType string) ([]Currency, error) {
-	url := fmt.Sprintf("https://poe.ninja/api/data/currencyoverview?league=%s&type=%s", league, itemType)
-	resp, err := http.Get(url)
+// DefaultBaseURL is the default server URL used by the app.
+// This is a variable so it can be overridden at build-time using:
+// -ldflags="-X 'github.com/cryptidcodes/PoEAutoFilter/client/internal/core.DefaultBaseURL=https://your-domain.com'"
+var DefaultBaseURL = "https://poe.ninja/api/data"
 
+// FetchCurrencyValues retrieves currency data from the poe.ninja currencyoverview endpoint.
+// The baseURL parameter allows redirecting requests to a custom server (for edge deployments).
+// Returns a slice of Currency objects or an error if the request fails.
+func FetchCurrencyValues(baseURL, league, itemType string) ([]Currency, error) {
+	if baseURL == "" {
+		baseURL = DefaultBaseURL
+	}
+	url := fmt.Sprintf("%s/currencyoverview?league=%s&type=%s", baseURL, league, itemType)
+	log.Printf("[ninja] Fetching currency: %s", url)
+
+	resp, err := http.Get(url)
 	if err != nil {
+		log.Printf("[ninja] HTTP error fetching currency: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[ninja] Non-200 status code: %d for %s", resp.StatusCode, url)
+		return nil, fmt.Errorf("poe.ninja returned status %d for %s", resp.StatusCode, url)
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("[ninja] Error reading response body: %v", err)
 		return nil, err
 	}
 
 	var data CurrencyResponse
 	if err := json.Unmarshal(body, &data); err != nil {
+		log.Printf("[ninja] Error parsing currency JSON: %v", err)
 		return nil, err
 	}
 
+	log.Printf("[ninja] Received %d currency items for %s/%s", len(data.Lines), league, itemType)
 	return data.Lines, nil
 }
 
-// fetchItemValues retrieves item data (like fragments, scarabs, etc.) from poe.ninja for a specific league.
-// It returns a slice of Item objects or an error if the request fails.
-func fetchItemValues(league string, itemType string) ([]Item, error) {
-	url := fmt.Sprintf("https://poe.ninja/api/data/itemoverview?league=%s&type=%s", league, itemType)
-	resp, err := http.Get(url)
+// FetchItemValues retrieves item data (scarabs, fossils, essences, etc.) from the
+// poe.ninja itemoverview endpoint. The baseURL parameter allows redirecting requests
+// to a custom server (for edge deployments).
+// Returns a slice of Item objects or an error if the request fails.
+func FetchItemValues(baseURL, league, itemType string) ([]Item, error) {
+	if baseURL == "" {
+		baseURL = DefaultBaseURL
+	}
+	url := fmt.Sprintf("%s/itemoverview?league=%s&type=%s", baseURL, league, itemType)
+	log.Printf("[ninja] Fetching items: %s", url)
 
+	resp, err := http.Get(url)
 	if err != nil {
+		log.Printf("[ninja] HTTP error fetching items: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[ninja] Non-200 status code: %d for %s", resp.StatusCode, url)
+		return nil, fmt.Errorf("poe.ninja returned status %d for %s", resp.StatusCode, url)
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("[ninja] Error reading response body: %v", err)
 		return nil, err
 	}
 
 	var data ItemResponse
 	if err := json.Unmarshal(body, &data); err != nil {
+		log.Printf("[ninja] Error parsing item JSON: %v", err)
 		return nil, err
 	}
 
+	log.Printf("[ninja] Received %d items for %s/%s", len(data.Lines), league, itemType)
 	return data.Lines, nil
 }

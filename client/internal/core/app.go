@@ -1,31 +1,35 @@
-package main
+package core
 
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 )
 
-// AppState holds the runtime state of the application
+// AppState holds the runtime state of the application including current prices
+// and whether the bot loop is active. Thread-safe via RWMutex.
 type AppState struct {
 	ChaosPrice   float64
 	ExaltedPrice float64
 	DivinePrice  float64
 	IsRunning    bool
-	mu           sync.RWMutex
+	Mu           sync.RWMutex
 }
 
-// App holds the main application dependencies and state
+// App holds the main application dependencies and state.
+// It is the central coordinator between config, price fetching, and filter generation.
+// Both the GUI and CLI entry points create and operate on an App instance.
 type App struct {
 	Config     Config
 	ConfigPath string
 	LogFunc    func(string)
 	State      *AppState
+
+	// BaseURL for poe.ninja API requests. Defaults to DefaultBaseURL.
+	// Can be overridden with --server-url flag for custom edge server deployments.
+	BaseURL string
 
 	// Context for managing the bot lifecycle
 	ctx    context.Context
@@ -34,8 +38,12 @@ type App struct {
 	botMu sync.Mutex
 }
 
-// NewApp creates a new application instance
+// NewApp creates a new application instance with config loaded from the specified path.
+// If config loading fails, defaults are used. The logFunc parameter is optional — pass nil
+// for headless/CLI mode and it will be set later or left as a no-op.
 func NewApp(configPath string, logFunc func(string)) (*App, error) {
+	log.Printf("[app] Initializing app with config: %s", configPath)
+
 	// Initialize with default config
 	cfg := Config{League: "Standard"}
 
@@ -44,6 +52,7 @@ func NewApp(configPath string, logFunc func(string)) (*App, error) {
 	if err == nil {
 		cfg = loadedCfg
 	} else {
+		log.Printf("[app] Warning: Could not load config: %v. Using defaults.", err)
 		if logFunc != nil {
 			logFunc(fmt.Sprintf("Warning: Could not load config: %v. Using defaults.\n", err))
 		}
@@ -53,6 +62,7 @@ func NewApp(configPath string, logFunc func(string)) (*App, error) {
 		Config:     cfg,
 		ConfigPath: configPath,
 		LogFunc:    logFunc,
+		BaseURL:    DefaultBaseURL,
 		State: &AppState{
 			ChaosPrice: 1.0,
 			IsRunning:  false,
@@ -60,7 +70,7 @@ func NewApp(configPath string, logFunc func(string)) (*App, error) {
 	}, nil
 }
 
-// UpdateConfig updates the app's configuration safely
+// UpdateConfig updates the app's configuration safely and persists it to disk.
 func (a *App) UpdateConfig(newCfg Config) {
 	a.botMu.Lock()
 	defer a.botMu.Unlock()
@@ -73,14 +83,16 @@ func (a *App) UpdateConfig(newCfg Config) {
 	}
 }
 
-// Log is a helper to write to the logger
+// Log is a helper to write to the configured logger function.
+// Safe to call even if LogFunc is nil (no-op).
 func (a *App) Log(msg string) {
 	if a.LogFunc != nil {
 		a.LogFunc(msg)
 	}
 }
 
-// StartBot starts the automation loop
+// StartBot starts the automation loop that periodically fetches prices and updates the filter.
+// If already running, this is a no-op.
 func (a *App) StartBot() {
 	a.botMu.Lock()
 	defer a.botMu.Unlock()
@@ -91,15 +103,15 @@ func (a *App) StartBot() {
 	}
 
 	a.ctx, a.cancel = context.WithCancel(context.Background())
-	a.State.mu.Lock()
+	a.State.Mu.Lock()
 	a.State.IsRunning = true
-	a.State.mu.Unlock()
+	a.State.Mu.Unlock()
 
 	a.Log("Starting AutoFilter Bot...\n")
 	go a.runBotLoop(a.ctx)
 }
 
-// StopBot stops the automation loop
+// StopBot stops the automation loop. Safe to call even if not running.
 func (a *App) StopBot() {
 	a.botMu.Lock()
 	defer a.botMu.Unlock()
@@ -109,35 +121,36 @@ func (a *App) StopBot() {
 		a.cancel = nil
 	}
 
-	a.State.mu.Lock()
+	a.State.Mu.Lock()
 	a.State.IsRunning = false
-	a.State.mu.Unlock()
+	a.State.Mu.Unlock()
 
 	a.Log("Bot stopped.\n")
 }
 
-// runBotLoop is the main loop, replacing the old runBot
+// runBotLoop is the main loop that runs in a goroutine, performing periodic filter updates.
+// It runs once immediately, then on a 1-hour ticker until the context is cancelled.
 func (a *App) runBotLoop(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Hour) // Default wait time
 	defer ticker.Stop()
 
 	// Run immediately once
-	a.processFilterUpdate(ctx)
+	a.ProcessFilterUpdate(ctx)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			a.processFilterUpdate(ctx)
+			a.ProcessFilterUpdate(ctx)
 		}
 	}
 }
 
-// processFilterUpdate performs one iteration of fetching prices and updating the filter
-func (a *App) processFilterUpdate(ctx context.Context) {
+// ProcessFilterUpdate performs one iteration of fetching prices and updating the filter.
+// This is exported so the CLI 'run' command can call it directly for one-shot mode.
+func (a *App) ProcessFilterUpdate(ctx context.Context) {
 	// Use a local copy of config to avoid races if it changes mid-update
-	// Realistically we might want a Read Lock here if Config can change
 	cfg := a.Config
 
 	a.Log("Path of Exile Auto Filter Check...\n")
@@ -145,7 +158,7 @@ func (a *App) processFilterUpdate(ctx context.Context) {
 
 	// 1. Fetch Currency
 	a.Log("Fetching Currency prices...\n")
-	currencyItems, err := fetchCurrencyValues(cfg.League, "Currency") // Update this function to take context?
+	currencyItems, err := FetchCurrencyValues(a.BaseURL, cfg.League, "Currency")
 	if err != nil {
 		a.Log(fmt.Sprintf("Error fetching currency: %v\n", err))
 		return
@@ -157,7 +170,7 @@ func (a *App) processFilterUpdate(ctx context.Context) {
 		currencyMap[item.CurrencyTypeName] = item.ChaosEquivalent
 	}
 
-	a.State.mu.Lock()
+	a.State.Mu.Lock()
 	a.State.ExaltedPrice = currencyMap["Exalted Orb"]
 	a.State.DivinePrice = currencyMap["Divine Orb"]
 	// Chaos is usually 1, but we can store it if needed
@@ -165,13 +178,11 @@ func (a *App) processFilterUpdate(ctx context.Context) {
 
 	exPrice := a.State.ExaltedPrice
 	divPrice := a.State.DivinePrice
-	a.State.mu.Unlock()
+	a.State.Mu.Unlock()
 
 	a.Log(fmt.Sprintf("Current Prices: Divine: %.1fc, Exalt: %.1fc\n", divPrice, exPrice))
 
-	// 2. Fetch other items (Fragments, Scarabs, etc.) - Could be parallelized
-	// For now, keep sequential but organized
-
+	// 2. Fetch other items (Fragments, Scarabs, etc.)
 	valueMap := make(map[string]map[string]float64)
 	valueMap["Currency"] = currencyMap
 
@@ -198,7 +209,7 @@ func (a *App) processFilterUpdate(ctx context.Context) {
 
 		if t.Category == "Fragment" {
 			// Fragments endpoint is currencyoverview
-			items, e := fetchCurrencyValues(cfg.League, t.Category)
+			items, e := FetchCurrencyValues(a.BaseURL, cfg.League, t.Category)
 			if e == nil {
 				priceMap = make(map[string]float64)
 				for _, i := range items {
@@ -208,7 +219,7 @@ func (a *App) processFilterUpdate(ctx context.Context) {
 			err = e
 		} else {
 			// Others are itemoverview
-			items, e := fetchItemValues(cfg.League, t.Category)
+			items, e := FetchItemValues(a.BaseURL, cfg.League, t.Category)
 			if e == nil {
 				priceMap = make(map[string]float64)
 				for _, i := range items {
@@ -227,49 +238,18 @@ func (a *App) processFilterUpdate(ctx context.Context) {
 
 	// 3. Generate Filter
 	a.Log("Generating filter...\n")
-	// We need to pass the prices manually since we removed globals
 	prices := PriceTable{
 		Exalted: exPrice,
 		Divine:  divPrice,
 	}
 
-	filterContent := writeFilterBlocks(cfg, valueMap, prices)
+	filterContent := WriteFilterBlocks(cfg, valueMap, prices)
 
-	err = updateFilterFile(cfg.BaseFilePath, cfg.FilePath, cfg.Override, filterContent)
+	err = UpdateFilterFile(cfg.BaseFilePath, cfg.FilePath, cfg.Override, filterContent)
 	if err != nil {
 		a.Log(fmt.Sprintf("Error updating filter file: %v\n", err))
 		return
 	}
 
 	a.Log(fmt.Sprintf("Filter updated successfully at %s\n", time.Now().Format(time.Kitchen)))
-}
-
-// SetupLogger configures the global logger to write to a file and stdout
-func SetupLogger() (*os.File, error) {
-	ex, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-	exPath := filepath.Dir(ex)
-	logPath := filepath.Join(exPath, "debug.log")
-
-	f, err := os.OpenFile(logPath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("error opening log file: %v", err)
-	}
-
-	// Write to both file and stdout
-	mw := io.MultiWriter(os.Stdout, f)
-	log.SetOutput(mw)
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
-	log.Printf("=== Session Started: %s ===", time.Now().Format(time.RFC3339))
-	return f, nil
-}
-
-// RunGUI is a variable that can be reassigned by platform-specific files.
-// By default, it prints a message that GUI is not available.
-var RunGUI = func(app *App) {
-	fmt.Println("GUI is only available on Windows.")
-	fmt.Println("Running in headless mode (if implemented) or exiting.")
 }

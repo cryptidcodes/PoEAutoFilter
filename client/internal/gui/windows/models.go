@@ -1,26 +1,37 @@
-package main
+//go:build windows
+// +build windows
+
+// models.go — Windows-only TableModel implementations for lxn/walk GUI.
+// These bridge the core.Config data into walk.TableView-compatible models.
+
+package windows
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/cryptidcodes/PoEAutoFilter/client/internal/core"
+
 	"github.com/lxn/walk"
 )
 
-// --- Models ---
+// --- Style Library Table Model ---
 
+// StyleItem represents a single row in the Style Library table.
 type StyleItem struct {
 	Name    string
 	Preview string
-	Style   *Style
+	Style   *core.Style
 }
 
+// StyleModel implements walk.TableModel for the Style Library TableView.
 type StyleModel struct {
 	walk.TableModelBase
 	Items []*StyleItem
 }
 
-func NewStyleModel(styles []Style) *StyleModel {
+// NewStyleModel creates a StyleModel from the app's style library config.
+func NewStyleModel(styles []core.Style) *StyleModel {
 	m := &StyleModel{Items: make([]*StyleItem, len(styles))}
 	for i := range styles {
 		m.Items[i] = &StyleItem{
@@ -32,9 +43,7 @@ func NewStyleModel(styles []Style) *StyleModel {
 	return m
 }
 
-func (m *StyleModel) RowCount() int {
-	return len(m.Items)
-}
+func (m *StyleModel) RowCount() int { return len(m.Items) }
 
 func (m *StyleModel) Value(row, col int) interface{} {
 	if row < 0 || row >= len(m.Items) {
@@ -54,20 +63,25 @@ func (m *StyleModel) Value(row, col int) interface{} {
 	return ""
 }
 
+// --- Value Tiers Table Model ---
+
+// TierItem represents a single row in the Value Tiers table.
 type TierItem struct {
 	Name     string
 	Value    string
 	Currency string
 	Style    string
-	Tier     *Tier
+	Tier     *core.Tier
 }
 
+// TierModel implements walk.TableModel for the Value Tiers TableView.
 type TierModel struct {
 	walk.TableModelBase
 	Items []*TierItem
 }
 
-func NewTierModel(tiers []Tier) *TierModel {
+// NewTierModel creates a TierModel from the app's tier config.
+func NewTierModel(tiers []core.Tier) *TierModel {
 	m := &TierModel{Items: make([]*TierItem, len(tiers))}
 	for i := range tiers {
 		m.Items[i] = &TierItem{
@@ -81,9 +95,7 @@ func NewTierModel(tiers []Tier) *TierModel {
 	return m
 }
 
-func (m *TierModel) RowCount() int {
-	return len(m.Items)
-}
+func (m *TierModel) RowCount() int { return len(m.Items) }
 
 func (m *TierModel) Value(row, col int) interface{} {
 	if row < 0 || row >= len(m.Items) {
