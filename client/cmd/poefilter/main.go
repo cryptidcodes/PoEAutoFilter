@@ -1,5 +1,5 @@
-// Application entry point.
-// Delegates execution to the cobra CLI framework.
+//go:build !windows
+
 package main
 
 import (

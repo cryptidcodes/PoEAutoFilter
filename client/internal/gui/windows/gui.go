@@ -35,16 +35,18 @@ func RunGUI(app *core.App) {
 	styleModel := NewStyleModel(app.Config.StyleLibrary)
 	tierModel := NewTierModel(app.Config.Tiers)
 
-	// Log Function Binding — routes app.Log() calls to the GUI Activity Log
-	app.LogFunc = func(msg string) {
+	// Log Function Binding — wait until logText is assigned by Create()
+	logFunc := func(msg string) {
 		if logText != nil {
 			logText.Synchronize(func() {
+				// Use AppendText with explicitly correct newlines for TextEdit
 				logText.AppendText(strings.ReplaceAll(msg, "\n", "\r\n"))
 			})
 		} else {
 			fmt.Print(msg)
 		}
 	}
+	app.LogFunc = logFunc
 
 	if err := (MainWindow{
 		AssignTo: &mw,
@@ -85,18 +87,17 @@ func RunGUI(app *core.App) {
 										if mw == nil {
 											return
 										}
-										cleanPath := filepath.FromSlash(filepath.Clean(app.Config.BaseFilePath))
+										app.Log("[GUI] Browsing for base filter...\n")
 										dlg := new(walk.FileDialog)
 										dlg.Title = "Select Base Filter File"
-										dlg.InitialDirPath = filepath.Dir(cleanPath)
-										dlg.FilePath = cleanPath
-										dlg.Filter = "Filter Files (*.filter)|*.filter|Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+										dlg.Filter = "Filter Files (*.filter)|*.filter|All Files (*.*)|*.*"
 
 										ok, err := dlg.ShowOpen(mw)
 										if err != nil {
-											app.Log(fmt.Sprintf("Dialog Error: %v\n", err))
+											app.Log(fmt.Sprintf("[GUI] FileDialog Error: %v\n", err))
 										}
 										if ok {
+											app.Log(fmt.Sprintf("[GUI] Selected base filter: %s\n", dlg.FilePath))
 											app.Config.BaseFilePath = filepath.ToSlash(dlg.FilePath)
 											if basePathLE != nil {
 												basePathLE.SetText(app.Config.BaseFilePath)
@@ -115,18 +116,17 @@ func RunGUI(app *core.App) {
 										if mw == nil {
 											return
 										}
-										cleanPath := filepath.FromSlash(filepath.Clean(app.Config.FilePath))
+										app.Log("[GUI] Browsing for output filter...\n")
 										dlg := new(walk.FileDialog)
 										dlg.Title = "Select Output Filter File"
-										dlg.InitialDirPath = filepath.Dir(cleanPath)
-										dlg.FilePath = cleanPath
-										dlg.Filter = "Filter Files (*.filter)|*.filter|Text Files (*.txt)|*.txt|All Files (*.*)|*.*"
+										dlg.Filter = "Filter Files (*.filter)|*.filter|All Files (*.*)|*.*"
 
 										ok, err := dlg.ShowSave(mw)
 										if err != nil {
-											app.Log(fmt.Sprintf("Dialog Error: %v\n", err))
+											app.Log(fmt.Sprintf("[GUI] FileDialog Error: %v\n", err))
 										}
 										if ok {
+											app.Log(fmt.Sprintf("[GUI] Selected output filter: %s\n", dlg.FilePath))
 											app.Config.FilePath = filepath.ToSlash(dlg.FilePath)
 											if outputPathLE != nil {
 												outputPathLE.SetText(app.Config.FilePath)
@@ -155,9 +155,11 @@ func RunGUI(app *core.App) {
 								Text:     "Start AutoFilter",
 								OnClicked: func() {
 									if app.State.IsRunning {
+										app.Log("[GUI] Stopping Bot...\n")
 										app.StopBot()
 										startBtn.SetText("Start AutoFilter")
 									} else {
+										app.Log("[GUI] Starting Bot...\n")
 										app.StartBot()
 										startBtn.SetText("Stop AutoFilter")
 									}
