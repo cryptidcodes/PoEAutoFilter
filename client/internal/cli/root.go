@@ -4,13 +4,10 @@
 package cli
 
 import (
-	"fmt"
 	"log"
 	"os"
 
 	"github.com/cryptidcodes/PoEAutoFilter/client/internal/core"
-	"github.com/cryptidcodes/PoEAutoFilter/client/internal/logging"
-	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 )
 
@@ -37,51 +34,19 @@ Run without arguments to launch the GUI, or use subcommands for headless operati
 	// This ensures config is loaded and logging is set up once, regardless of which
 	// subcommand the user invokes.
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Load .env file if it exists
-		if err := godotenv.Load(); err != nil {
-			// .env is optional, ignore error if missing
+		// Use the common initialization logic
+		if err := InitAppContext(); err != nil {
+			return err
 		}
 
-		// Setup logger
-		f, err := logging.SetupLogger()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not setup logger: %v\n", err)
-		} else {
-			// Store file handle in command context for cleanup
-			_ = f
+		// Apply CLI-specific overrides from flags
+		if serverURL != "" {
+			app.BaseURL = serverURL
+			log.Printf("[cli] Using server URL from flag: %s", serverURL)
 		}
 
 		if verbose {
 			log.Println("[cli] Verbose mode enabled")
-		}
-
-		// Initialize app
-		var logFunc func(string)
-		if verbose {
-			logFunc = func(msg string) {
-				fmt.Print(msg)
-			}
-		}
-
-		app, err = core.NewApp(cfgFile, logFunc)
-		if err != nil {
-			return fmt.Errorf("failed to initialize app: %w", err)
-		}
-
-		// Priority: Flag > POE_SERVER_URL env > Default
-		finalServerURL := serverURL
-		if finalServerURL == "" {
-			if envURL := os.Getenv("POE_SERVER_URL"); envURL != "" {
-				finalServerURL = envURL
-				log.Printf("[cli] Using server URL from environment (POE_SERVER_URL): %s", finalServerURL)
-			}
-		}
-
-		if finalServerURL != "" {
-			app.BaseURL = finalServerURL
-			if finalServerURL == serverURL {
-				log.Printf("[cli] Using server URL from flag: %s", finalServerURL)
-			}
 		}
 
 		return nil
