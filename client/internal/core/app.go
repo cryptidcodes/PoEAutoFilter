@@ -62,7 +62,7 @@ func NewApp(configPath string, logFunc func(string)) (*App, error) {
 		Config:     cfg,
 		ConfigPath: configPath,
 		LogFunc:    logFunc,
-		BaseURL:    DefaultBaseURL,
+		BaseURL:    "https://api.autofilter.dev",
 		State: &AppState{
 			ChaosPrice: 1.0,
 			IsRunning:  false,
@@ -99,6 +99,11 @@ func (a *App) StartBot() {
 
 	if a.State.IsRunning {
 		a.Log("Bot is already running.\n")
+		return
+	}
+
+	if a.BaseURL == "" {
+		a.Log("Error: Server URL not configured. Set AUTOFILTER_SERVER_URL environment variable.\n")
 		return
 	}
 
@@ -158,16 +163,10 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 
 	// 1. Fetch Currency
 	a.Log("Fetching Currency prices...\n")
-	currencyItems, err := FetchCurrencyValues(a.BaseURL, cfg.League, "Currency")
+	currencyMap, err := FetchPrices(a.BaseURL, cfg.League, "Currency")
 	if err != nil {
 		a.Log(fmt.Sprintf("Error fetching currency: %v\n", err))
 		return
-	}
-
-	// Process Currency to update global prices (Chaos, Exalt, Divine)
-	currencyMap := make(map[string]float64)
-	for _, item := range currencyItems {
-		currencyMap[item.CurrencyTypeName] = item.ChaosEquivalent
 	}
 
 	a.State.Mu.Lock()
@@ -188,13 +187,12 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 
 	typesToFetch := []struct {
 		Name     string
-		APIType  string // "itemoverview" or "currencyoverview" logic
 		Category string
 	}{
-		{"Fragments", "currency", "Fragment"},
-		{"Scarabs", "item", "Scarab"},
-		{"Fossils", "item", "Fossil"},
-		{"Essences", "item", "Essence"},
+		{"Fragments", "Fragment"},
+		{"Scarabs", "Scarab"},
+		{"Fossils", "Fossil"},
+		{"Essences", "Essence"},
 	}
 
 	for _, t := range typesToFetch {
@@ -204,31 +202,8 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 		}
 
 		a.Log(fmt.Sprintf("Fetching %s...\n", t.Name))
-		var priceMap map[string]float64
-		var err error
-
-		if t.Category == "Fragment" {
-			// Fragments endpoint is currencyoverview
-			items, e := FetchCurrencyValues(a.BaseURL, cfg.League, t.Category)
-			if e == nil {
-				priceMap = make(map[string]float64)
-				for _, i := range items {
-					priceMap[i.CurrencyTypeName] = i.ChaosEquivalent
-				}
-			}
-			err = e
-		} else {
-			// Others are itemoverview
-			items, e := FetchItemValues(a.BaseURL, cfg.League, t.Category)
-			if e == nil {
-				priceMap = make(map[string]float64)
-				for _, i := range items {
-					priceMap[i.Name] = i.ChaosValue
-				}
-			}
-			err = e
-		}
-
+		
+		priceMap, err := FetchPrices(a.BaseURL, cfg.League, t.Category)
 		if err != nil {
 			a.Log(fmt.Sprintf("Error fetching %s: %v\n", t.Name, err))
 			continue

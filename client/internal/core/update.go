@@ -24,9 +24,6 @@ type VersionInfo struct {
 
 // CheckUpdate requests the version metadata from the server and compares it to AppVersion.
 func CheckUpdate(serverURL string) (*VersionInfo, bool, error) {
-	if serverURL == "" {
-		serverURL = DefaultBaseURL
-	}
 	url := fmt.Sprintf("%s/version", serverURL)
 
 	client := &http.Client{Timeout: 5 * time.Second}

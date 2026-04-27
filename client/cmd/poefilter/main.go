@@ -1,11 +1,9 @@
-//go:build !windows
-
 package main
 
 import (
-	"github.com/cryptidcodes/PoEAutoFilter/client/internal/cli"
+	"github.com/cryptidcodes/PoEAutoFilter/client/internal/gui"
 )
 
 func main() {
-	cli.Execute()
+	gui.RunApp()
 }

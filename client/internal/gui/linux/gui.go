@@ -20,10 +20,10 @@ import (
 // This sets up the main application window and its tabs.
 func RunGUI(app *core.App) {
 	log.Println("[gui/linux] Launching GTK4 Application")
-	
+
 	defer LogPanic("RunGUI", nil) // Currently no owner window to pass
 
-	a := gtk.NewApplication("com.github.cryptidcodes.poeautofilter", gio.ApplicationFlagsNone)
+	a := gtk.NewApplication("poeautofilter", gio.ApplicationFlagsNone)
 	a.ConnectActivate(func() { activate(a, app) })
 
 	// GTK4 parses os.Args and expects only app-relevant arguments.
@@ -68,7 +68,7 @@ func activate(gtkApp *gtk.Application, coreApp *core.App) {
 	logScrolled := gtk.NewScrolledWindow()
 	logScrolled.SetVExpand(true)
 	logScrolled.SetSizeRequest(-1, 150) // Fix height for log
-	
+
 	logBuffer := gtk.NewTextBuffer(nil)
 	logView := gtk.NewTextViewWithBuffer(logBuffer)
 	logView.SetEditable(false)
@@ -172,7 +172,7 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	grid := gtk.NewGrid()
 	grid.SetColumnSpacing(10)
 	grid.SetRowSpacing(10)
-	
+
 	// League
 	leagueLabel := gtk.NewLabel("League:")
 	leagueLabel.SetHAlign(gtk.AlignEnd)
@@ -242,14 +242,14 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	startBtn.SetMarginTop(10)
 	startBtn.SetMarginBottom(10)
 	startBtn.SetHAlign(gtk.AlignCenter)
-	
+
 	startBtn.ConnectClicked(func() {
 		// Save config fields before running
 		coreApp.Config.League = leagueEntry.Text()
-		
+
 		start, end := overrideBuffer.Bounds()
 		coreApp.Config.Override = overrideBuffer.Text(start, end, false)
-		
+
 		coreApp.UpdateConfig(coreApp.Config)
 
 		coreApp.State.Mu.Lock()
@@ -264,7 +264,7 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 			startBtn.SetLabel("Stop AutoFilter")
 		}
 	})
-	
+
 	box.Append(startBtn)
 
 	return box
@@ -309,7 +309,7 @@ func runFileChooserDialog(parent *gtk.Window, title string, action gtk.FileChoos
 		}
 		dlg.Destroy()
 	})
-	
+
 	dlg.Show()
 }
 
@@ -322,11 +322,11 @@ func buildStyleTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 
 	// Buttons HBox
 	btnBox := gtk.NewBox(gtk.OrientationHorizontal, 5)
-	
+
 	addBtn := gtk.NewButtonWithLabel("Add Style")
 	editBtn := gtk.NewButtonWithLabel("Edit Selected")
 	delBtn := gtk.NewButtonWithLabel("Delete Style")
-	
+
 	btnBox.Append(addBtn)
 	btnBox.Append(editBtn)
 	btnBox.Append(delBtn)
@@ -336,16 +336,16 @@ func buildStyleTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	treeScrolled := gtk.NewScrolledWindow()
 	treeScrolled.SetVExpand(true)
 	treeScrolled.SetHExpand(true)
-	
+
 	treeView := gtk.NewTreeView()
 	treeView.AppendColumn(createTextColumn("Name", int(StyleNameColumn)))
 	treeView.AppendColumn(createTextColumn("Preview", int(StylePreviewColumn)))
-	
+
 	listStoreWrapper := NewStyleListStore()
 	listStoreWrapper.Load(coreApp.Config.StyleLibrary)
 	treeView.SetModel(listStoreWrapper.Store)
 	treeScrolled.SetChild(treeView)
-	
+
 	box.Append(treeScrolled)
 
 	// Button Actions
@@ -361,7 +361,7 @@ func buildStyleTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 		if model, iter, ok := sel.Selected(); ok {
 			path := model.Path(iter)
 			idx := path.Indices()[0] // Get row index
-			
+
 			if idx >= 0 && idx < len(coreApp.Config.StyleLibrary) {
 				style := &coreApp.Config.StyleLibrary[idx]
 				// Open dialog
@@ -372,7 +372,7 @@ func buildStyleTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 			}
 		}
 	}
-	
+
 	editBtn.ConnectClicked(editAction)
 	treeView.ConnectRowActivated(func(path *gtk.TreePath, column *gtk.TreeViewColumn) {
 		editAction()
@@ -403,11 +403,11 @@ func buildTierTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 
 	// Buttons HBox
 	btnBox := gtk.NewBox(gtk.OrientationHorizontal, 5)
-	
+
 	addBtn := gtk.NewButtonWithLabel("Add Tier")
 	editBtn := gtk.NewButtonWithLabel("Edit Selected")
 	delBtn := gtk.NewButtonWithLabel("Delete Tier")
-	
+
 	btnBox.Append(addBtn)
 	btnBox.Append(editBtn)
 	btnBox.Append(delBtn)
@@ -417,18 +417,18 @@ func buildTierTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	treeScrolled := gtk.NewScrolledWindow()
 	treeScrolled.SetVExpand(true)
 	treeScrolled.SetHExpand(true)
-	
+
 	treeView := gtk.NewTreeView()
 	treeView.AppendColumn(createTextColumn("Name", int(TierNameColumn)))
 	treeView.AppendColumn(createTextColumn("Value", int(TierValueColumn)))
 	treeView.AppendColumn(createTextColumn("Currency", int(TierCurrencyColumn)))
 	treeView.AppendColumn(createTextColumn("Style", int(TierStyleColumn)))
-	
+
 	listStoreWrapper := NewTierListStore()
 	listStoreWrapper.Load(coreApp.Config.Tiers)
 	treeView.SetModel(listStoreWrapper.Store)
 	treeScrolled.SetChild(treeView)
-	
+
 	box.Append(treeScrolled)
 
 	// Button Actions
@@ -443,8 +443,8 @@ func buildTierTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 		sel := treeView.Selection()
 		if model, iter, ok := sel.Selected(); ok {
 			path := model.Path(iter)
-			idx := path.Indices()[0] 
-			
+			idx := path.Indices()[0]
+
 			if idx >= 0 && idx < len(coreApp.Config.Tiers) {
 				tier := &coreApp.Config.Tiers[idx]
 				RunTierDialog(&win.Window, tier, coreApp.Config.StyleLibrary, func() {
@@ -454,7 +454,7 @@ func buildTierTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 			}
 		}
 	}
-	
+
 	editBtn.ConnectClicked(editAction)
 	treeView.ConnectRowActivated(func(path *gtk.TreePath, column *gtk.TreeViewColumn) {
 		editAction()

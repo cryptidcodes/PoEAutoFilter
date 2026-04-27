@@ -27,7 +27,3 @@ updates/
 
 # Agent files
 .agent/
-
-# Build/deploy scripts
-build.sh
-deploy.sh

@@ -4,102 +4,87 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 )
 
-func TestFetchCurrencyValues(t *testing.T) {
-	// Create a mock server that returns test currency data
-	mockResponse := CurrencyResponse{
-		Lines: []Currency{
-			{CurrencyTypeName: "Divine Orb", ChaosEquivalent: 150.0},
-			{CurrencyTypeName: "Exalted Orb", ChaosEquivalent: 12.0},
+func TestFetchPrices(t *testing.T) {
+	// Set mock environment variables for the test
+	os.Setenv("API_URL", "/api/economy")
+	os.Setenv("PRICE_SOURCE_EXCHANGE", "/exchange")
+	os.Setenv("CURRENT_PRICE", "/current/overview")
+	defer func() {
+		os.Unsetenv("API_URL")
+		os.Unsetenv("PRICE_SOURCE_EXCHANGE")
+		os.Unsetenv("CURRENT_PRICE")
+	}()
+
+	mockResponse := NinjaResponse{
+		Items: []NinjaItem{
+			{ID: "divine", Name: "Divine Orb"},
+			{ID: "exalted", Name: "Exalted Orb"},
+		},
+		Lines: []NinjaLine{
+			{ID: "divine", PrimaryValue: 150.0},
+			{ID: "exalted", PrimaryValue: 12.0},
 		},
 	}
 	data, _ := json.Marshal(mockResponse)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify the request path contains expected parameters
-		if r.URL.Path != "/currencyoverview" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
+		expectedPath := "/poe1/api/economy/exchange/current/overview"
+		if r.URL.Path != expectedPath {
+			t.Errorf("unexpected path: expected %s, got %s", expectedPath, r.URL.Path)
 		}
 		league := r.URL.Query().Get("league")
 		if league != "TestLeague" {
 			t.Errorf("expected league TestLeague, got %s", league)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
-	}))
-	defer server.Close()
-
-	items, err := FetchCurrencyValues(server.URL, "TestLeague", "Currency")
-	if err != nil {
-		t.Fatalf("FetchCurrencyValues failed: %v", err)
-	}
-
-	if len(items) != 2 {
-		t.Fatalf("expected 2 items, got %d", len(items))
-	}
-	if items[0].CurrencyTypeName != "Divine Orb" {
-		t.Errorf("expected Divine Orb, got %s", items[0].CurrencyTypeName)
-	}
-	if items[0].ChaosEquivalent != 150.0 {
-		t.Errorf("expected 150.0, got %.1f", items[0].ChaosEquivalent)
-	}
-}
-
-func TestFetchItemValues(t *testing.T) {
-	// Create a mock server that returns test item data
-	mockResponse := ItemResponse{
-		Lines: []Item{
-			{Name: "Gilded Scarab", ChaosValue: 25.0},
-			{Name: "Polished Scarab", ChaosValue: 5.0},
-		},
-	}
-	data, _ := json.Marshal(mockResponse)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/itemoverview" {
-			t.Errorf("unexpected path: %s", r.URL.Path)
+		itemType := r.URL.Query().Get("type")
+		if itemType != "Currency" {
+			t.Errorf("expected type Currency, got %s", itemType)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(data)
 	}))
 	defer server.Close()
 
-	items, err := FetchItemValues(server.URL, "TestLeague", "Scarab")
+	priceMap, err := FetchPrices(server.URL, "TestLeague", "Currency")
 	if err != nil {
-		t.Fatalf("FetchItemValues failed: %v", err)
+		t.Fatalf("FetchPrices failed: %v", err)
 	}
 
-	if len(items) != 2 {
-		t.Fatalf("expected 2 items, got %d", len(items))
+	if len(priceMap) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(priceMap))
 	}
-	if items[0].Name != "Gilded Scarab" {
-		t.Errorf("expected Gilded Scarab, got %s", items[0].Name)
+	if priceMap["Divine Orb"] != 150.0 {
+		t.Errorf("expected 150.0 for Divine Orb, got %.1f", priceMap["Divine Orb"])
+	}
+	if priceMap["Exalted Orb"] != 12.0 {
+		t.Errorf("expected 12.0 for Exalted Orb, got %.1f", priceMap["Exalted Orb"])
 	}
 }
 
-func TestFetchCurrencyValuesError(t *testing.T) {
-	// Server that returns 500
+func TestFetchPricesError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
 
-	_, err := FetchCurrencyValues(server.URL, "TestLeague", "Currency")
+	_, err := FetchPrices(server.URL, "TestLeague", "Currency")
 	if err == nil {
 		t.Error("expected error for 500 response, got nil")
 	}
 }
 
-func TestFetchCurrencyValuesMalformedJSON(t *testing.T) {
+func TestFetchPricesMalformedJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("{invalid json"))
 	}))
 	defer server.Close()
 
-	_, err := FetchCurrencyValues(server.URL, "TestLeague", "Currency")
+	_, err := FetchPrices(server.URL, "TestLeague", "Currency")
 	if err == nil {
 		t.Error("expected error for malformed JSON, got nil")
 	}

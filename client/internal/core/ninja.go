@@ -6,117 +6,64 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"time"
+	"os"
+
+	"github.com/joho/godotenv"
 )
 
-// Currency represents a single currency item from the poe.ninja currencyoverview API.
-// The ChaosEquivalent field is the primary value used for filter generation.
-type Currency struct {
-	CurrencyTypeName string `json:"currencyTypeName"`
-	Pay              struct {
-		ID                int       `json:"id"`
-		LeagueID          int       `json:"league_id"`
-		PayCurrencyID     int       `json:"pay_currency_id"`
-		GetCurrencyID     int       `json:"get_currency_id"`
-		SampleTimeUtc     time.Time `json:"sample_time_utc"`
-		Count             int       `json:"count"`
-		Value             float64   `json:"value"`
-		DataPointCount    int       `json:"data_point_count"`
-		IncludesSecondary bool      `json:"includes_secondary"`
-		ListingCount      int       `json:"listing_count"`
-	} `json:"pay"`
-	Receive struct {
-		ID                int       `json:"id"`
-		LeagueID          int       `json:"league_id"`
-		PayCurrencyID     int       `json:"pay_currency_id"`
-		GetCurrencyID     int       `json:"get_currency_id"`
-		SampleTimeUtc     time.Time `json:"sample_time_utc"`
-		Count             int       `json:"count"`
-		Value             float64   `json:"value"`
-		DataPointCount    int       `json:"data_point_count"`
-		IncludesSecondary bool      `json:"includes_secondary"`
-		ListingCount      int       `json:"listing_count"`
-	} `json:"receive"`
-	PaySparkLine struct {
-		Data        []interface{} `json:"data"`
-		TotalChange float64       `json:"totalChange"`
-	} `json:"paySparkLine"`
-	ReceiveSparkLine struct {
-		Data        []float64 `json:"data"`
-		TotalChange float64   `json:"totalChange"`
-	} `json:"receiveSparkLine"`
-	ChaosEquivalent           float64 `json:"chaosEquivalent"`
-	LowConfidencePaySparkLine struct {
-		Data        []interface{} `json:"data"`
-		TotalChange float64       `json:"totalChange"`
-	} `json:"lowConfidencePaySparkLine"`
-	LowConfidenceReceiveSparkLine struct {
-		Data        []float64 `json:"data"`
-		TotalChange float64   `json:"totalChange"`
-	} `json:"lowConfidenceReceiveSparkLine"`
-	DetailsID string `json:"detailsId"`
+// NinjaItem represents an item definition from the poe.ninja API.
+type NinjaItem struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
-// Item represents a single item from the poe.ninja itemoverview API.
-// Used for categories like Scarabs, Fossils, Essences, etc.
-type Item struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	Icon      string `json:"icon"`
-	BaseType  string `json:"baseType"`
-	StackSize int    `json:"stackSize"`
-	ItemClass int    `json:"itemClass"`
-	Sparkline struct {
-		Data        []float64 `json:"data"`
-		TotalChange float64   `json:"totalChange"`
-	} `json:"sparkline"`
-	LowConfidenceSparkline struct {
-		Data        []float64 `json:"data"`
-		TotalChange float64   `json:"totalChange"`
-	} `json:"lowConfidenceSparkline"`
-	ImplicitModifiers []interface{} `json:"implicitModifiers"`
-	ExplicitModifiers []struct {
-		Text     string `json:"text"`
-		Optional bool   `json:"optional"`
-	} `json:"explicitModifiers"`
-	FlavourText  string        `json:"flavourText"`
-	ChaosValue   float64       `json:"chaosValue"`
-	ExaltedValue float64       `json:"exaltedValue"`
-	DivineValue  float64       `json:"divineValue"`
-	Count        int           `json:"count"`
-	DetailsID    string        `json:"detailsId"`
-	TradeInfo    []interface{} `json:"tradeInfo"`
-	ListingCount int           `json:"listingCount"`
+// NinjaLine represents the market data for an item from the poe.ninja API.
+type NinjaLine struct {
+	ID           string  `json:"id"`
+	PrimaryValue float64 `json:"primaryValue"` // This is the chaos equivalent value
 }
 
-// CurrencyResponse is the top-level JSON structure returned by the poe.ninja currencyoverview API.
-type CurrencyResponse struct {
-	Lines []Currency `json:"lines"`
+// NinjaResponse is the top-level JSON structure returned by the new poe.ninja API.
+type NinjaResponse struct {
+	Lines []NinjaLine `json:"lines"`
+	Items []NinjaItem `json:"items"`
 }
 
-// ItemResponse is the top-level JSON structure returned by the poe.ninja itemoverview API.
-type ItemResponse struct {
-	Lines []Item `json:"lines"`
+// PriceEntry connects the human-readable item name to its chaos value.
+type PriceEntry struct {
+	Name       string
+	ChaosValue float64
 }
 
-// DefaultBaseURL is the default server URL used by the app.
-// This is a variable so it can be overridden at build-time using:
-// -ldflags="-X 'github.com/cryptidcodes/PoEAutoFilter/client/internal/core.DefaultBaseURL=https://your-domain.com'"
-var DefaultBaseURL = "https://poe.ninja/api/data"
+// FetchPrices retrieves data from the new poe.ninja v2 API endpoint.
+// It constructs the URL using values from .env if available.
+func FetchPrices(baseURL, league, itemType string) (map[string]float64, error) {
+	// Attempt to load .env, but don't fail if it doesn't exist
+	_ = godotenv.Load()
 
-// FetchCurrencyValues retrieves currency data from the poe.ninja currencyoverview endpoint.
-// The baseURL parameter allows redirecting requests to a custom server (for edge deployments).
-// Returns a slice of Currency objects or an error if the request fails.
-func FetchCurrencyValues(baseURL, league, itemType string) ([]Currency, error) {
-	if baseURL == "" {
-		baseURL = DefaultBaseURL
+	apiURL := os.Getenv("API_URL")
+	if apiURL == "" {
+		apiURL = "/api/economy"
 	}
-	url := fmt.Sprintf("%s/currencyoverview?league=%s&type=%s", baseURL, league, itemType)
-	log.Printf("[ninja] Fetching currency: %s", url)
+	priceSource := os.Getenv("PRICE_SOURCE_EXCHANGE")
+	if priceSource == "" {
+		priceSource = "/exchange"
+	}
+	currentPrice := os.Getenv("CURRENT_PRICE")
+	if currentPrice == "" {
+		currentPrice = "/current/overview"
+	}
+
+	// Construct the dynamic path. Note: poe.ninja API expects /poe1/ before /api/economy
+	// If the server proxy proxies exactly what it's given, we must send /poe1/api/...
+	path := fmt.Sprintf("/poe1%s%s%s?league=%s&type=%s", apiURL, priceSource, currentPrice, league, itemType)
+	url := baseURL + path
+
+	log.Printf("[ninja] Fetching prices: %s", url)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Printf("[ninja] HTTP error fetching currency: %v", err)
+		log.Printf("[ninja] HTTP error fetching prices: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -132,51 +79,26 @@ func FetchCurrencyValues(baseURL, league, itemType string) ([]Currency, error) {
 		return nil, err
 	}
 
-	var data CurrencyResponse
+	var data NinjaResponse
 	if err := json.Unmarshal(body, &data); err != nil {
-		log.Printf("[ninja] Error parsing currency JSON: %v", err)
+		log.Printf("[ninja] Error parsing JSON: %v", err)
 		return nil, err
 	}
 
-	log.Printf("[ninja] Received %d currency items for %s/%s", len(data.Lines), league, itemType)
-	return data.Lines, nil
-}
-
-// FetchItemValues retrieves item data (scarabs, fossils, essences, etc.) from the
-// poe.ninja itemoverview endpoint. The baseURL parameter allows redirecting requests
-// to a custom server (for edge deployments).
-// Returns a slice of Item objects or an error if the request fails.
-func FetchItemValues(baseURL, league, itemType string) ([]Item, error) {
-	if baseURL == "" {
-		baseURL = DefaultBaseURL
-	}
-	url := fmt.Sprintf("%s/itemoverview?league=%s&type=%s", baseURL, league, itemType)
-	log.Printf("[ninja] Fetching items: %s", url)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		log.Printf("[ninja] HTTP error fetching items: %v", err)
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("[ninja] Non-200 status code: %d for %s", resp.StatusCode, url)
-		return nil, fmt.Errorf("poe.ninja returned status %d for %s", resp.StatusCode, url)
+	// Map ID -> Name
+	nameMap := make(map[string]string)
+	for _, item := range data.Items {
+		nameMap[item.ID] = item.Name
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("[ninja] Error reading response body: %v", err)
-		return nil, err
+	// Map Name -> ChaosValue
+	priceMap := make(map[string]float64)
+	for _, line := range data.Lines {
+		if name, ok := nameMap[line.ID]; ok {
+			priceMap[name] = line.PrimaryValue
+		}
 	}
 
-	var data ItemResponse
-	if err := json.Unmarshal(body, &data); err != nil {
-		log.Printf("[ninja] Error parsing item JSON: %v", err)
-		return nil, err
-	}
-
-	log.Printf("[ninja] Received %d items for %s/%s", len(data.Lines), league, itemType)
-	return data.Lines, nil
+	log.Printf("[ninja] Received %d items for %s/%s", len(priceMap), league, itemType)
+	return priceMap, nil
 }
