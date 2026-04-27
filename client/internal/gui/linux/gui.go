@@ -23,7 +23,7 @@ func RunGUI(app *core.App) {
 
 	defer LogPanic("RunGUI", nil) // Currently no owner window to pass
 
-	a := gtk.NewApplication("poeautofilter", gio.ApplicationFlagsNone)
+	a := gtk.NewApplication("com.github.cryptidcodes.poeautofilter", gio.ApplicationFlagsNone)
 	a.ConnectActivate(func() { activate(a, app) })
 
 	// GTK4 parses os.Args and expects only app-relevant arguments.
@@ -35,7 +35,7 @@ func RunGUI(app *core.App) {
 
 func activate(gtkApp *gtk.Application, coreApp *core.App) {
 	win := gtk.NewApplicationWindow(gtkApp)
-	win.SetTitle("PoEAutoFilter Config")
+	win.SetTitle(fmt.Sprintf("PoEAutoFilter Config - %s", core.AppVersion))
 	win.SetDefaultSize(800, 600)
 
 	// Create a VBox for the Notebook and the Log panel
@@ -99,7 +99,7 @@ func activate(gtkApp *gtk.Application, coreApp *core.App) {
 }
 
 func checkUpdates(coreApp *core.App, win *gtk.ApplicationWindow) {
-	info, hasUpdate, err := core.CheckUpdate("")
+	info, hasUpdate, err := core.CheckUpdate(coreApp.BaseURL)
 	if err != nil {
 		log.Printf("[gui/linux] Failed to check for updates: %v", err)
 		return

@@ -50,7 +50,7 @@ func RunGUI(app *core.App) {
 
 	if err := (MainWindow{
 		AssignTo: &mw,
-		Title:    "PoEAutoFilter Config",
+		Title:    fmt.Sprintf("PoEAutoFilter Config - %s", core.AppVersion),
 		MinSize:  Size{Width: 800, Height: 600},
 		Layout:   VBox{},
 		Children: []Widget{
@@ -346,7 +346,7 @@ func RunGUI(app *core.App) {
 }
 
 func checkUpdatesWindows(coreApp *core.App, mw *walk.MainWindow) {
-	info, hasUpdate, err := core.CheckUpdate("")
+	info, hasUpdate, err := core.CheckUpdate(coreApp.BaseURL)
 	if err != nil {
 		log.Printf("[gui/windows] Failed to check for updates: %v", err)
 		return
