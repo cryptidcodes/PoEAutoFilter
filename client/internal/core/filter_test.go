@@ -95,3 +95,34 @@ func TestWriteFilterBlocks(t *testing.T) {
 		t.Errorf("missing style SetFontSize 30")
 	}
 }
+
+func TestWriteFilterBlocksResonators(t *testing.T) {
+	cfg := Config{
+		StyleLibrary: []Style{
+			{Name: "High", Actions: []FilterAction{{Type: "SetFontSize", Values: []string{"45"}}}},
+		},
+		Tiers: []Tier{
+			{Name: "1 Chaos", Value: 1.0, Currency: "Chaos", StyleName: "High"},
+		},
+	}
+
+	valueMap := map[string]map[string]float64{
+		"Resonators": {
+			"Primitive Alchemical Resonator": 2.0,
+		},
+	}
+
+	prices := PriceTable{
+		Exalted: 10.0,
+		Divine:  100.0,
+	}
+
+	result := WriteFilterBlocks(cfg, valueMap, prices)
+
+	if !bytes.Contains([]byte(result), []byte("Primitive Alchemical Resonator")) {
+		t.Errorf("expected Resonator filter blocks, got none. Output:\n%s", result)
+	}
+	if !bytes.Contains([]byte(result), []byte("Show")) {
+		t.Errorf("expected Show block for Resonator")
+	}
+}

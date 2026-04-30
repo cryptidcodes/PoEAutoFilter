@@ -181,7 +181,7 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 
 	a.Log(fmt.Sprintf("Current Prices: Divine: %.1fc, Exalt: %.1fc\n", divPrice, exPrice))
 
-	// 2. Fetch other items (Fragments, Scarabs, etc.)
+	// 2. Fetch other stackable currency (Fragments, Scarabs, etc.)
 	valueMap := make(map[string]map[string]float64)
 	valueMap["Currency"] = currencyMap
 
@@ -192,6 +192,7 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 		{"Fragments", "Fragment"},
 		{"Scarabs", "Scarab"},
 		{"Fossils", "Fossil"},
+		{"Resonators", "Resonator"},
 		{"Essences", "Essence"},
 	}
 
@@ -202,7 +203,7 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 		}
 
 		a.Log(fmt.Sprintf("Fetching %s...\n", t.Name))
-		
+
 		priceMap, err := FetchPrices(a.BaseURL, cfg.League, t.Category)
 		if err != nil {
 			a.Log(fmt.Sprintf("Error fetching %s: %v\n", t.Name, err))

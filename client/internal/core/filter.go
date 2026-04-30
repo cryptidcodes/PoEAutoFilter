@@ -28,7 +28,7 @@ func WriteFilterBlocks(cfg Config, valueMap map[string]map[string]float64, price
 	var buf bytes.Buffer
 
 	// Use local type slice instead of global
-	typeSlice := []string{"Currency", "Fragments", "Scarabs", "Fossils", "Essences"}
+	typeSlice := []string{"Currency", "Fragments", "Scarabs", "Fossils", "Resonators", "Essences"}
 
 	// 1. Prepare and sort tiers by absolute Chaos value (descending)
 	type sortedTier struct {
