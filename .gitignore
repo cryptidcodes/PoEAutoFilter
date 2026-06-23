@@ -12,6 +12,7 @@ rsrc.syso
 # Secrets
 .env
 server/
+TODO.md
 
 # Configs
 config.json

@@ -184,9 +184,9 @@ func TestDebugArmourersScrap(t *testing.T) {
 	}
 
 	// Normalize them as in the actual app
-	chaosPriceInDiv := currencyMap["Chaos Orb"]
+	chaosPrice := currencyMap["Chaos Orb"]
 	for k, v := range currencyMap {
-		currencyMap[k] = v / chaosPriceInDiv
+		currencyMap[k] = v / chaosPrice
 	}
 
 	valueMap := map[string]map[string]float64{

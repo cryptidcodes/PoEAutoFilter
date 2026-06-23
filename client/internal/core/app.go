@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -169,10 +168,6 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 	a.Log("Game Version: " + gameVersion + "\n")
 
 	// 1. Fetch Currency
-	gameVersionStr := "poe1"
-	if gameVersion == "poe2" {
-		gameVersionStr = "poe2"
-	}
 	apiURL := os.Getenv("API_URL")
 	if apiURL == "" {
 		apiURL = "/api/economy"
@@ -185,8 +180,6 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 	if currentPrice == "" {
 		currentPrice = "/current/overview"
 	}
-	expectedPath := fmt.Sprintf("/%s%s%s%s?league=%s&type=Currency", gameVersionStr, apiURL, priceSource, currentPrice, url.QueryEscape(cfg.League))
-	a.Log(fmt.Sprintf("Request URL: %s%s\n", a.BaseURL, expectedPath))
 
 	a.Log("Fetching Currency prices...\n")
 	currencyMap, err := FetchPrices(a.BaseURL, gameVersion, cfg.League, "Currency")
@@ -200,17 +193,17 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 
 	// For PoE2, poe.ninja prices are in Divine Orbs.
 	// Normalize them to Chaos equivalents by dividing by the Chaos Orb price.
-	chaosPriceInDiv := 1.0
+	chaosPriceInEx := 1.0
 	if gameVersion == "poe2" {
 		if p, ok := currencyMap["Chaos Orb"]; ok && p > 0 {
-			chaosPriceInDiv = p
+			chaosPriceInEx = p
 		} else {
-			chaosPriceInDiv = 0.1 // fallback
+			chaosPriceInEx = 0.1 // fallback
 		}
-		a.Log(fmt.Sprintf("PoE2 Base Currency Normalization: 1 Chaos = %.4f Divine\n", chaosPriceInDiv))
+		a.Log(fmt.Sprintf("PoE2 Base Currency Normalization: 1 Chaos = %.4f Exalted\n", chaosPriceInEx))
 
 		for k, v := range currencyMap {
-			currencyMap[k] = v / chaosPriceInDiv
+			currencyMap[k] = v / chaosPriceInEx
 		}
 	}
 
@@ -275,7 +268,7 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 		}
 		if gameVersion == "poe2" {
 			for k, v := range priceMap {
-				priceMap[k] = v / chaosPriceInDiv
+				priceMap[k] = v / chaosPriceInEx
 			}
 		}
 		valueMap[t.Name] = priceMap
