@@ -12,7 +12,7 @@ import (
 // AppVersion is the current version of the application.
 // It is intended to be overridden at build time using -ldflags.
 // Example: -ldflags="-X 'github.com/cryptidcodes/PoEAutoFilter/client/internal/core.AppVersion=v1.1.0'"
-var AppVersion = "v1.0.0"
+var AppVersion = "v0.0.0"
 
 // VersionInfo matches the JSON format returned by the proxy server's /version endpoint.
 type VersionInfo struct {

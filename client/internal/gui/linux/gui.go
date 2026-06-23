@@ -46,17 +46,8 @@ func activate(gtkApp *gtk.Application, coreApp *core.App) {
 	notebook.SetVExpand(true)
 	notebook.SetHExpand(true)
 
-	// 1. General Tab
-	generalBox := buildGeneralTab(coreApp, win)
-	notebook.AppendPage(generalBox, gtk.NewLabel("General"))
-
-	// 2. Style Library Tab
-	styleBox := buildStyleTab(coreApp, win)
-	notebook.AppendPage(styleBox, gtk.NewLabel("Style Library"))
-
-	// 3. Value Tiers Tab
-	tierBox := buildTierTab(coreApp, win)
-	notebook.AppendPage(tierBox, gtk.NewLabel("Value Tiers"))
+	// Build tabs
+	rebuildTabs(coreApp, win, notebook)
 
 	vbox.Append(notebook)
 
@@ -162,7 +153,7 @@ func performUpdate(url string, parent *gtk.Window) {
 	})
 }
 
-func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
+func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow, notebook *gtk.Notebook) *gtk.Box {
 	box := gtk.NewBox(gtk.OrientationVertical, 10)
 	box.SetMarginTop(10)
 	box.SetMarginBottom(10)
@@ -173,14 +164,27 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	grid.SetColumnSpacing(10)
 	grid.SetRowSpacing(10)
 
+	// Game Version
+	versionLabel := gtk.NewLabel("Game Version:")
+	versionLabel.SetHAlign(gtk.AlignEnd)
+	versionCombo := gtk.NewComboBoxText()
+	versionCombo.Append("poe1", "Path of Exile 1")
+	versionCombo.Append("poe2", "Path of Exile 2")
+	if coreApp.Config.GameVersion == "" {
+		coreApp.Config.GameVersion = "poe1"
+	}
+	versionCombo.SetActiveID(coreApp.Config.GameVersion)
+	grid.Attach(versionLabel, 0, 0, 1, 1)
+	grid.Attach(versionCombo, 1, 0, 2, 1)
+
 	// League
 	leagueLabel := gtk.NewLabel("League:")
 	leagueLabel.SetHAlign(gtk.AlignEnd)
 	leagueEntry := gtk.NewEntry()
 	leagueEntry.SetText(coreApp.Config.League)
 	leagueEntry.SetHExpand(true)
-	grid.Attach(leagueLabel, 0, 0, 1, 1)
-	grid.Attach(leagueEntry, 1, 0, 2, 1)
+	grid.Attach(leagueLabel, 0, 1, 1, 1)
+	grid.Attach(leagueEntry, 1, 1, 2, 1)
 
 	// Base Filter
 	baseLabel := gtk.NewLabel("Base Filter:")
@@ -190,9 +194,9 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	baseEntry.SetSensitive(false) // Read-only look
 	baseEntry.SetHExpand(true)
 	baseBtn := gtk.NewButtonWithLabel("Browse...")
-	grid.Attach(baseLabel, 0, 1, 1, 1)
-	grid.Attach(baseEntry, 1, 1, 1, 1)
-	grid.Attach(baseBtn, 2, 1, 1, 1)
+	grid.Attach(baseLabel, 0, 2, 1, 1)
+	grid.Attach(baseEntry, 1, 2, 1, 1)
+	grid.Attach(baseBtn, 2, 2, 1, 1)
 
 	// Output Filter
 	outLabel := gtk.NewLabel("Output Filter:")
@@ -202,9 +206,9 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	outEntry.SetSensitive(false)
 	outEntry.SetHExpand(true)
 	outBtn := gtk.NewButtonWithLabel("Browse...")
-	grid.Attach(outLabel, 0, 2, 1, 1)
-	grid.Attach(outEntry, 1, 2, 1, 1)
-	grid.Attach(outBtn, 2, 2, 1, 1)
+	grid.Attach(outLabel, 0, 3, 1, 1)
+	grid.Attach(outEntry, 1, 3, 1, 1)
+	grid.Attach(outBtn, 2, 3, 1, 1)
 
 	box.Append(grid)
 
@@ -239,12 +243,19 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 
 	// Start Button
 	startBtn := gtk.NewButtonWithLabel("Start AutoFilter")
+	coreApp.State.Mu.RLock()
+	isRunningInit := coreApp.State.IsRunning
+	coreApp.State.Mu.RUnlock()
+	if isRunningInit {
+		startBtn.SetLabel("Stop AutoFilter")
+	}
 	startBtn.SetMarginTop(10)
 	startBtn.SetMarginBottom(10)
 	startBtn.SetHAlign(gtk.AlignCenter)
 
 	startBtn.ConnectClicked(func() {
 		// Save config fields before running
+		coreApp.Config.GameVersion = versionCombo.ActiveID()
 		coreApp.Config.League = leagueEntry.Text()
 
 		start, end := overrideBuffer.Bounds()
@@ -262,6 +273,25 @@ func buildGeneralTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 		} else {
 			coreApp.StartBot()
 			startBtn.SetLabel("Stop AutoFilter")
+		}
+	})
+
+	versionCombo.ConnectChanged(func() {
+		newVer := versionCombo.ActiveID()
+		if newVer != "" && newVer != coreApp.Config.GameVersion {
+			// Save current input fields first
+			coreApp.Config.League = leagueEntry.Text()
+			start, end := overrideBuffer.Bounds()
+			coreApp.Config.Override = overrideBuffer.Text(start, end, false)
+
+			// Switch version and update config
+			coreApp.Config.SwitchGameVersion(newVer)
+			coreApp.UpdateConfig(coreApp.Config)
+
+			// Rebuild pages
+			glib.IdleAdd(func() {
+				rebuildTabs(coreApp, win, notebook)
+			})
 		}
 	})
 
@@ -474,4 +504,30 @@ func buildTierTab(coreApp *core.App, win *gtk.ApplicationWindow) *gtk.Box {
 	})
 
 	return box
+}
+
+func rebuildTabs(coreApp *core.App, win *gtk.ApplicationWindow, notebook *gtk.Notebook) {
+	activePage := notebook.CurrentPage()
+
+	// Remove all pages
+	for notebook.NPages() > 0 {
+		notebook.RemovePage(0)
+	}
+
+	// 1. General Tab
+	generalBox := buildGeneralTab(coreApp, win, notebook)
+	notebook.AppendPage(generalBox, gtk.NewLabel("General"))
+
+	// 2. Style Library Tab
+	styleBox := buildStyleTab(coreApp, win)
+	notebook.AppendPage(styleBox, gtk.NewLabel("Style Library"))
+
+	// 3. Value Tiers Tab
+	tierBox := buildTierTab(coreApp, win)
+	notebook.AppendPage(tierBox, gtk.NewLabel("Value Tiers"))
+
+	// Restore active page if valid
+	if activePage >= 0 && activePage < notebook.NPages() {
+		notebook.SetCurrentPage(activePage)
+	}
 }

@@ -79,7 +79,7 @@ func TestSaveAndLoadRoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := SaveConfig(original, cfgPath); err != nil {
+	if err := SaveConfig(&original, cfgPath); err != nil {
 		t.Fatalf("SaveConfig failed: %v", err)
 	}
 
@@ -215,4 +215,42 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestConfigGameVersionSwitch(t *testing.T) {
+	cfg := Config{
+		GameVersion: "poe1",
+		FilePath:    "poe1.filter",
+		League:      "Settlers",
+	}
+
+	// Initial switch (saves active poe1 to PoE1 sub-config, then sets version to poe2, then loads default PoE2 config)
+	cfg.SwitchGameVersion("poe2")
+	if cfg.GameVersion != "poe2" {
+		t.Errorf("expected game version poe2, got %s", cfg.GameVersion)
+	}
+	// Since PoE2 has no styles/tiers in the inline declaration, it will load empty/default values
+	cfg.League = "PoE2League"
+	cfg.FilePath = "poe2.filter"
+
+	// Switch back to poe1
+	cfg.SwitchGameVersion("poe1")
+	if cfg.GameVersion != "poe1" {
+		t.Errorf("expected game version poe1, got %s", cfg.GameVersion)
+	}
+	if cfg.League != "Settlers" {
+		t.Errorf("expected PoE1 league Settlers, got %s", cfg.League)
+	}
+	if cfg.FilePath != "poe1.filter" {
+		t.Errorf("expected PoE1 filepath poe1.filter, got %s", cfg.FilePath)
+	}
+
+	// Switch to poe2 again
+	cfg.SwitchGameVersion("poe2")
+	if cfg.League != "PoE2League" {
+		t.Errorf("expected PoE2 league PoE2League, got %s", cfg.League)
+	}
+	if cfg.FilePath != "poe2.filter" {
+		t.Errorf("expected PoE2 filepath poe2.filter, got %s", cfg.FilePath)
+	}
 }

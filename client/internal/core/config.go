@@ -68,9 +68,22 @@ type Tier struct {
 	StyleName string  `json:"styleName"` // Reference to Style.Name
 }
 
+// GameConfig holds sub-configuration fields unique to a game version (PoE1 or PoE2).
+type GameConfig struct {
+	FilePath     string  `json:"filePath"`
+	BaseFilePath string  `json:"baseFilePath"`
+	League       string  `json:"league"`
+	Override     string  `json:"override"`
+	StyleLibrary []Style `json:"styleLibrary"`
+	Tiers        []Tier  `json:"tiers"`
+}
+
 // Config holds all persistent application configuration including file paths,
 // league selection, style library, value tiers, and custom override rules.
 type Config struct {
+	GameVersion  string              `json:"gameVersion"` // "poe1" or "poe2"
+	PoE1         GameConfig          `json:"poe1"`
+	PoE2         GameConfig          `json:"poe2"`
 	FilePath     string              `json:"filePath"`
 	BaseFilePath string              `json:"baseFilePath"`
 	League       string              `json:"league"`
@@ -126,8 +139,43 @@ func LoadConfig(path string) (Config, error) {
 		log.Printf("[config] Running migration from legacy styles")
 		migrateStyles(&cfg)
 		// Save migrated config to JSON
-		SaveConfig(cfg, path)
+		SaveConfig(&cfg, path)
 	}
+
+	if cfg.GameVersion == "" {
+		cfg.GameVersion = "poe1"
+	}
+
+	// Migration to PoE1 and PoE2 structures:
+	// If PoE1 has no styles and tiers, but root does, initialize PoE1 from root
+	if len(cfg.PoE1.StyleLibrary) == 0 && len(cfg.PoE1.Tiers) == 0 {
+		log.Printf("[config] Migrating active root config to PoE1 structure")
+		cfg.PoE1 = GameConfig{
+			FilePath:     cfg.FilePath,
+			BaseFilePath: cfg.BaseFilePath,
+			League:       cfg.League,
+			Override:     cfg.Override,
+			StyleLibrary: cfg.StyleLibrary,
+			Tiers:        cfg.Tiers,
+		}
+	}
+
+	// Ensure PoE2 has sensible defaults if empty
+	if len(cfg.PoE2.StyleLibrary) == 0 && len(cfg.PoE2.Tiers) == 0 {
+		log.Printf("[config] Initializing PoE2 config with default show styles")
+		cfg.PoE2 = GameConfig{
+			League: "Standard",
+			StyleLibrary: []Style{
+				{Name: "Default Show", Actions: []FilterAction{{Type: "SetFontSize", Values: []string{"32"}}}},
+			},
+			Tiers: []Tier{
+				{Name: "1 Chaos", Value: 1.0, Currency: "Chaos", StyleName: "Default Show"},
+			},
+		}
+	}
+
+	// Load currently active game version into active root fields
+	cfg.LoadGameConfigToActive()
 
 	return cfg, nil
 }
@@ -194,9 +242,65 @@ func migrateStyles(cfg *Config) {
 	cfg.Styles = nil
 }
 
+// SaveActiveToGameConfig copies current active root configuration fields to the selected game version's sub-config.
+func (c *Config) SaveActiveToGameConfig() {
+	gameVersion := c.GameVersion
+	if gameVersion == "" {
+		gameVersion = "poe1"
+	}
+
+	gameCfg := GameConfig{
+		FilePath:     c.FilePath,
+		BaseFilePath: c.BaseFilePath,
+		League:       c.League,
+		Override:     c.Override,
+		StyleLibrary: c.StyleLibrary,
+		Tiers:        c.Tiers,
+	}
+
+	if gameVersion == "poe2" {
+		c.PoE2 = gameCfg
+	} else {
+		c.PoE1 = gameCfg
+	}
+}
+
+// LoadGameConfigToActive loads the configuration fields of the selected game version into the active root fields.
+func (c *Config) LoadGameConfigToActive() {
+	gameVersion := c.GameVersion
+	if gameVersion == "" {
+		gameVersion = "poe1"
+	}
+
+	var gameCfg GameConfig
+	if gameVersion == "poe2" {
+		gameCfg = c.PoE2
+	} else {
+		gameCfg = c.PoE1
+	}
+
+	c.FilePath = gameCfg.FilePath
+	c.BaseFilePath = gameCfg.BaseFilePath
+	c.League = gameCfg.League
+	c.Override = gameCfg.Override
+	c.StyleLibrary = gameCfg.StyleLibrary
+	c.Tiers = gameCfg.Tiers
+}
+
+// SwitchGameVersion saves the current active configuration, switches GameVersion, and loads the target config.
+func (c *Config) SwitchGameVersion(newVer string) {
+	if newVer == "" {
+		newVer = "poe1"
+	}
+	c.SaveActiveToGameConfig()
+	c.GameVersion = newVer
+	c.LoadGameConfigToActive()
+}
+
 // SaveConfig saves the configuration to the specified path as indented JSON.
-func SaveConfig(cfg Config, path string) error {
+func SaveConfig(cfg *Config, path string) error {
 	log.Printf("[config] Saving config to: %s", path)
+	cfg.SaveActiveToGameConfig()
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		log.Printf("[config] Error marshaling config: %v", err)

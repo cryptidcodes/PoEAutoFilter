@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
+	"os"
 	"sync"
 	"time"
 )
@@ -62,7 +64,7 @@ func NewApp(configPath string, logFunc func(string)) (*App, error) {
 		Config:     cfg,
 		ConfigPath: configPath,
 		LogFunc:    logFunc,
-		BaseURL:    "https://api.autofilter.dev",
+		BaseURL:    "https://poe.ninja",
 		State: &AppState{
 			ChaosPrice: 1.0,
 			IsRunning:  false,
@@ -76,7 +78,7 @@ func (a *App) UpdateConfig(newCfg Config) {
 	defer a.botMu.Unlock()
 	a.Config = newCfg
 	// Should also save to disk
-	if err := SaveConfig(newCfg, a.ConfigPath); err != nil {
+	if err := SaveConfig(&a.Config, a.ConfigPath); err != nil {
 		a.Log(fmt.Sprintf("Error saving config: %v\n", err))
 	} else {
 		a.Log("Configuration saved.\n")
@@ -157,43 +159,102 @@ func (a *App) runBotLoop(ctx context.Context) {
 func (a *App) ProcessFilterUpdate(ctx context.Context) {
 	// Use a local copy of config to avoid races if it changes mid-update
 	cfg := a.Config
+	gameVersion := cfg.GameVersion
+	if gameVersion == "" {
+		gameVersion = "poe1"
+	}
 
 	a.Log("Path of Exile Auto Filter Check...\n")
 	a.Log("League: " + cfg.League + "\n")
+	a.Log("Game Version: " + gameVersion + "\n")
 
 	// 1. Fetch Currency
+	gameVersionStr := "poe1"
+	if gameVersion == "poe2" {
+		gameVersionStr = "poe2"
+	}
+	apiURL := os.Getenv("API_URL")
+	if apiURL == "" {
+		apiURL = "/api/economy"
+	}
+	priceSource := os.Getenv("PRICE_SOURCE_EXCHANGE")
+	if priceSource == "" {
+		priceSource = "/exchange"
+	}
+	currentPrice := os.Getenv("CURRENT_PRICE")
+	if currentPrice == "" {
+		currentPrice = "/current/overview"
+	}
+	expectedPath := fmt.Sprintf("/%s%s%s%s?league=%s&type=Currency", gameVersionStr, apiURL, priceSource, currentPrice, url.QueryEscape(cfg.League))
+	a.Log(fmt.Sprintf("Request URL: %s%s\n", a.BaseURL, expectedPath))
+
 	a.Log("Fetching Currency prices...\n")
-	currencyMap, err := FetchPrices(a.BaseURL, cfg.League, "Currency")
+	currencyMap, err := FetchPrices(a.BaseURL, gameVersion, cfg.League, "Currency")
 	if err != nil {
 		a.Log(fmt.Sprintf("Error fetching currency: %v\n", err))
 		return
+	}
+	if len(currencyMap) == 0 {
+		a.Log(fmt.Sprintf("Warning: No price data returned for league %q. Please verify spelling and capitalization (e.g. \"Runes of Aldur\" vs \"Runes Of Aldur\").\n", cfg.League))
+	}
+
+	// For PoE2, poe.ninja prices are in Divine Orbs.
+	// Normalize them to Chaos equivalents by dividing by the Chaos Orb price.
+	chaosPriceInDiv := 1.0
+	if gameVersion == "poe2" {
+		if p, ok := currencyMap["Chaos Orb"]; ok && p > 0 {
+			chaosPriceInDiv = p
+		} else {
+			chaosPriceInDiv = 0.1 // fallback
+		}
+		a.Log(fmt.Sprintf("PoE2 Base Currency Normalization: 1 Chaos = %.4f Divine\n", chaosPriceInDiv))
+
+		for k, v := range currencyMap {
+			currencyMap[k] = v / chaosPriceInDiv
+		}
 	}
 
 	a.State.Mu.Lock()
 	a.State.ExaltedPrice = currencyMap["Exalted Orb"]
 	a.State.DivinePrice = currencyMap["Divine Orb"]
-	// Chaos is usually 1, but we can store it if needed
 	a.State.ChaosPrice = 1.0
 
 	exPrice := a.State.ExaltedPrice
 	divPrice := a.State.DivinePrice
 	a.State.Mu.Unlock()
 
-	a.Log(fmt.Sprintf("Current Prices: Divine: %.1fc, Exalt: %.1fc\n", divPrice, exPrice))
+	a.Log(fmt.Sprintf("Current Prices: Divine: %.1fc, Exalt: %.3fc\n", divPrice, exPrice))
 
 	// 2. Fetch other stackable currency (Fragments, Scarabs, etc.)
 	valueMap := make(map[string]map[string]float64)
 	valueMap["Currency"] = currencyMap
 
-	typesToFetch := []struct {
+	var typesToFetch []struct {
 		Name     string
 		Category string
-	}{
-		{"Fragments", "Fragment"},
-		{"Scarabs", "Scarab"},
-		{"Fossils", "Fossil"},
-		{"Resonators", "Resonator"},
-		{"Essences", "Essence"},
+	}
+
+	switch gameVersion {
+	case "poe2":
+		typesToFetch = []struct {
+			Name     string
+			Category string
+		}{
+			{"Fragments", "Fragments"},
+			{"Essences", "Essences"},
+			{"Breach", "Breach"},
+		}
+	default:
+		typesToFetch = []struct {
+			Name     string
+			Category string
+		}{
+			{"Fragments", "Fragment"},
+			{"Scarabs", "Scarab"},
+			{"Fossils", "Fossil"},
+			{"Resonators", "Resonator"},
+			{"Essences", "Essence"},
+		}
 	}
 
 	for _, t := range typesToFetch {
@@ -204,10 +265,18 @@ func (a *App) ProcessFilterUpdate(ctx context.Context) {
 
 		a.Log(fmt.Sprintf("Fetching %s...\n", t.Name))
 
-		priceMap, err := FetchPrices(a.BaseURL, cfg.League, t.Category)
+		priceMap, err := FetchPrices(a.BaseURL, gameVersion, cfg.League, t.Category)
 		if err != nil {
 			a.Log(fmt.Sprintf("Error fetching %s: %v\n", t.Name, err))
 			continue
+		}
+		if len(priceMap) == 0 {
+			a.Log(fmt.Sprintf("Warning: No data returned for %s under league %q.\n", t.Name, cfg.League))
+		}
+		if gameVersion == "poe2" {
+			for k, v := range priceMap {
+				priceMap[k] = v / chaosPriceInDiv
+			}
 		}
 		valueMap[t.Name] = priceMap
 	}

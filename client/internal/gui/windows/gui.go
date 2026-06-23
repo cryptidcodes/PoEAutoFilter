@@ -17,6 +17,20 @@ import (
 	. "github.com/lxn/walk/declarative"
 )
 
+func getGameVersionCode(displayVal string) string {
+	if displayVal == "Path of Exile 2" {
+		return "poe2"
+	}
+	return "poe1"
+}
+
+func getGameVersionDisplay(code string) string {
+	if code == "poe2" {
+		return "Path of Exile 2"
+	}
+	return "Path of Exile 1"
+}
+
 // RunGUI is the Windows GUI entry point.
 func RunGUI(app *core.App) {
 	defer LogPanic("RunGUI", nil)
@@ -30,6 +44,7 @@ func RunGUI(app *core.App) {
 	var outputPathLE *walk.LineEdit
 	var leagueLE *walk.LineEdit
 	var overrideTE *walk.TextEdit
+	var gameVersionCB *walk.ComboBox
 
 	// Table Models
 	styleModel := NewStyleModel(app.Config.StyleLibrary)
@@ -64,6 +79,76 @@ func RunGUI(app *core.App) {
 							Composite{
 								Layout: Grid{Columns: 3},
 								Children: []Widget{
+									Label{Text: "Game Version:"},
+									ComboBox{
+										AssignTo: &gameVersionCB,
+										Model:    []string{"Path of Exile 1", "Path of Exile 2"},
+										Value:    getGameVersionDisplay(app.Config.GameVersion),
+										OnCurrentIndexChanged: func() {
+											if gameVersionCB != nil {
+												newVer := getGameVersionCode(gameVersionCB.Text())
+												if newVer != app.Config.GameVersion {
+													app.Log(fmt.Sprintf("Switching game version to %s...\n", newVer))
+
+													// Save current input fields first
+													if leagueLE != nil {
+														app.Config.League = strings.TrimSpace(leagueLE.Text())
+													}
+													if overrideTE != nil {
+														app.Config.Override = overrideTE.Text()
+													}
+
+													// Switch version
+													app.Config.SwitchGameVersion(newVer)
+													app.UpdateConfig(app.Config)
+
+													// Update GUI fields
+													if leagueLE != nil {
+														leagueLE.SetText(app.Config.League)
+													}
+													if basePathLE != nil {
+														basePathLE.SetText(app.Config.BaseFilePath)
+													}
+													if outputPathLE != nil {
+														outputPathLE.SetText(app.Config.FilePath)
+													}
+													if overrideTE != nil {
+														overrideTE.SetText(app.Config.Override)
+													}
+
+													// Refresh style and tier models
+													if styleModel != nil {
+														styleModel.Items = make([]*StyleItem, len(app.Config.StyleLibrary))
+														for i := range app.Config.StyleLibrary {
+															s := &app.Config.StyleLibrary[i]
+															styleModel.Items[i] = &StyleItem{
+																Name:    s.Name,
+																Preview: s.ToFilterLines(),
+																Style:   s,
+															}
+														}
+														styleModel.PublishRowsReset()
+													}
+													if tierModel != nil {
+														tierModel.Items = make([]*TierItem, len(app.Config.Tiers))
+														for i := range app.Config.Tiers {
+															t := &app.Config.Tiers[i]
+															tierModel.Items[i] = &TierItem{
+																Name:     t.Name,
+																Value:    fmt.Sprintf("%.2f", t.Value),
+																Currency: t.Currency,
+																Style:    t.StyleName,
+																Tier:     t,
+															}
+														}
+														tierModel.PublishRowsReset()
+													}
+												}
+											}
+										},
+									},
+									HSpacer{},
+
 									Label{Text: "League:"},
 									LineEdit{
 										AssignTo: &leagueLE,
@@ -160,6 +245,13 @@ func RunGUI(app *core.App) {
 										startBtn.SetText("Start AutoFilter")
 									} else {
 										app.Log("[GUI] Starting Bot...\n")
+										if gameVersionCB != nil {
+											app.Config.GameVersion = getGameVersionCode(gameVersionCB.Text())
+										}
+										if leagueLE != nil {
+											app.Config.League = strings.TrimSpace(leagueLE.Text())
+										}
+										app.UpdateConfig(app.Config)
 										app.StartBot()
 										startBtn.SetText("Stop AutoFilter")
 									}
